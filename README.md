@@ -10,6 +10,13 @@ all four controllers connected using a mix of DualShock 3 and DualShock 4
 controllers. Testing covered garbage attacks, target switching, Hot Potato,
 pause/resume, and post-match results and line rewards.
 
+**All eight original solo gameplay stages were brought to approximately
+60 FPS under normal tested conditions**, including Industrial/Finale. This
+took extensive stage-specific rendering, background, sky, effects and
+playfield optimization, not merely a frame-rate cap change. Particularly
+full boards can briefly dip below 60; the Russian sky is an approximation
+rather than an exact N64 match.
+
 Just as much work went into restoring the **WONDERS progression**: the
 stage-by-stage construction milestones, animated transitions, completed
 Wonders, the WONDERS Hall (including in-progress and locked displays),
@@ -23,6 +30,9 @@ rendering and performance work, and on-device setup using your own ROM.
 Other Vita ports deserve credit for their work too; TNTV is another approach
 to bringing this game to Vita, with its own implementation and priorities.
 
+- **Optimized solo gameplay:** all seven original cultural stages and
+  the Industrial/Finale board run around 60 FPS in normal tested gameplay;
+  dense boards may briefly dip. Versus-opponent and 4P remain around 30 FPS.
 - **Single-player and local multiplayer:** original game modes, stages and
   progression, with up to four players on PSTV / Vita TV.
 - **Wonders and progression:** seven original culture stages, milestone

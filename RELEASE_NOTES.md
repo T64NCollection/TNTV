@@ -3,6 +3,10 @@
 ## Highlights
 
 - Native *The New Tetris* gameplay on PS Vita and PlayStation TV (PSTV / Vita TV).
+- **All eight solo gameplay stages optimized for approximately 60 FPS in
+  ordinary tested conditions**, with extensive restoration of skies,
+  backgrounds, effects and playfields. Heavy stacks may dip; the Russian
+  sky is an approximation rather than an exact N64 reproduction.
 - **Hardware-tested two-, three-, and four-player local multiplayer on PSTV**, using DualShock 3 and DualShock 4 controllers, including garbage attacks, targeting, Hot Potato and match results.
 - **Extensively restored Wonders:** progression through all seven culture stages, construction milestones and animations, WONDERS Hall (completed, in-progress and locked presentations), the finale, and saved unlock progress. These sequences received extensive visual and performance testing on hardware.
 - Original soundtrack reconstructed locally from the user's ROM, supported and tested original name-entry cheats, and perhaps an undisclosed surprise or two.
@@ -17,9 +21,13 @@ generated cache or save data is bundled. See INSTALLATION.md.
 
 ## Performance
 
-Frame rate varies by scene; some full WONDERS cinematic sequences run at
-30 FPS. First launch creates local caches and takes longer than later
-launches. Further startup and cinematic optimization is planned for future work.
+Normal solo-stage gameplay generally runs near 60 FPS on tested Vita
+hardware. Heavy stacks can cause dips; versus-opponent and four-player
+play operate near 30 FPS. Other multiplayer modes and menus vary, and
+some full WONDERS cinematic sequences run at 30 FPS. Interactive
+WONDERS Hall scenes can approach 60 FPS. First launch creates local
+caches and takes longer than later launches. Further startup and
+cinematic optimization is planned for future work.
 
 ## Credits
 
