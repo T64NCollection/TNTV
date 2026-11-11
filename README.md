@@ -2,11 +2,11 @@
 
 [![Platform: PS Vita / PSTV](https://img.shields.io/badge/Platform-PS%20Vita%20%7C%20PSTV-1863AE)](https://github.com/T64NCollection/TNTV)
 [![Players: 1–4](https://img.shields.io/badge/Players-1%E2%80%934-blueviolet)](https://github.com/T64NCollection/TNTV)
-[![Release: v1.0-rc2](https://img.shields.io/badge/Release-v1.0--rc2-brightgreen)](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2)
+[![Release: v1.0](https://img.shields.io/badge/Release-v1.0-brightgreen)](https://github.com/T64NCollection/TNTV/releases/tag/v1.0)
 
 **TNTV** is an unofficial native port of the Nintendo 64 classic *The New Tetris* for **PS Vita** and **PlayStation TV (PSTV / Vita TV)**, with an emphasis on the complete original experience—including its Wonders and four-player gameplay.
 
-**[Download TNTV v1.0-rc2](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2)**
+**[Download TNTV v1.0](https://github.com/T64NCollection/TNTV/releases/tag/v1.0)**
 
 ---
 
@@ -43,7 +43,7 @@ The same controller mappings apply to each player on PSTV. Multiplayer requires 
 
 ## 📦 Installation
 
-1. Download [the latest TNTV player package](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2), extract it and install the **VPK** using **VitaShell**.
+1. Download [the latest TNTV player package](https://github.com/T64NCollection/TNTV/releases/tag/v1.0), extract it and install the **VPK** using **VitaShell**.
 2. Put **your own compatible USA 1.0 Nintendo 64 ROM** of *The New Tetris* (**12,582,912 bytes / 12 MiB**) in `ux0:/data/TNTV/`.
 3. Leave the ROM's filename alone. TNTV accepts `.z64`, `.v64` and `.n64` files, including their common original names. For best results, keep just one ROM in the folder.
 4. Launch TNTV. The first run prepares graphics, scenes and music from your ROM; later launches reuse local caches.

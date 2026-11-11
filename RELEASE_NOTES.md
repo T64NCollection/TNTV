@@ -1,4 +1,4 @@
-# TNTV v1.0-rc2 — PS Vita & PlayStation TV
+# TNTV v1.0 — PS Vita & PlayStation TV
 
 ## Highlights
 
@@ -10,7 +10,7 @@
 
 ## Getting started
 
-Install `TNTV_v1.0_RC2.vpk` through VitaShell and place your own original
+Install `TNTV_v1.0.vpk` through VitaShell and place your own original
 *The New Tetris* **USA 1.0 N64 ROM (12,582,912 bytes)** in
 `ux0:/data/TNTV/`. No renaming is needed. The first launch creates local
 game-resource caches; preserve `tntv_sram.bin` to keep saved progress.
