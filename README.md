@@ -33,14 +33,10 @@ to bringing this game to Vita, with its own implementation and priorities.
   players might find an extra surprise or two.
 - **Native Vita presentation:** GXM rendering, stage-specific visual fixes,
   performance tuning and an FPS display for real-hardware play.
-- **On-device ROM setup without renaming:** accepts common original filenames
-  and other .z64, .v64 and .n64 names, with ROM revision validation,
-  visible loading progress, and reusable local asset caches.
+- **On-device ROM setup:** supports original .z64, .v64 and .n64 images,
+  ROM revision validation, visible loading progress and reusable local caches.
 
-[Download v1.0-rc2](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2).
-This release includes Test217D's hardware-tested ROM filename autodetection.
-The previously published [v1.0-rc1](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc1)
-remains available.
+[Download TNTV v1.0-rc2](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2).
 
 **A supported original N64 game ROM supplied by the player is required.**
 Neither the application VPK nor the source package includes the original
