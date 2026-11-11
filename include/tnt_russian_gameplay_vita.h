@@ -1,0 +1,42 @@
+#ifndef TNT_RUSSIAN_GAMEPLAY_VITA_H
+#define TNT_RUSSIAN_GAMEPLAY_VITA_H
+#include "tnt_wonder_vita.h"
+#define TNT_RUSSIAN_SKY_NODE_COUNT 5
+#define TNT_RUSSIAN_SKY_MESH_COUNT 3
+#define TNT_RUSSIAN_SKY_TEXTURE_COUNT 3
+#define TNT_RUSSIAN_SKY_TRIANGLE_COUNT 30
+#define TNT_RUSSIAN_SNOW_NODE_COUNT 7
+#define TNT_RUSSIAN_SNOW_MESH_COUNT 6
+#define TNT_RUSSIAN_SNOW_TRIANGLE_COUNT 45
+#define TNT_RUSSIAN_CANDLE_FRAME_COUNT 8
+#define TNT_RUSSIAN_CANDLE_INSTANCE_COUNT 13
+extern f32 g_tnt_russian_sky_nodes[TNT_RUSSIAN_SKY_NODE_COUNT][9];
+extern u8 g_tnt_russian_sky_node_type[TNT_RUSSIAN_SKY_NODE_COUNT];
+extern s8 g_tnt_russian_sky_parents[TNT_RUSSIAN_SKY_NODE_COUNT];
+extern u8 g_tnt_russian_sky_node_mesh[TNT_RUSSIAN_SKY_NODE_COUNT];
+extern f32 g_tnt_russian_sky_mesh_scale[TNT_RUSSIAN_SKY_MESH_COUNT];
+extern TNTWonderTriangle g_tnt_russian_sky_triangles[TNT_RUSSIAN_SKY_TRIANGLE_COUNT];
+extern u8 g_tnt_russian_sky_triangle_alpha[TNT_RUSSIAN_SKY_TRIANGLE_COUNT];
+extern u16 g_tnt_russian_sky_textures[TNT_RUSSIAN_SKY_TEXTURE_COUNT][1360];
+extern u16 g_tnt_russian_sky_texture_texels[TNT_RUSSIAN_SKY_TEXTURE_COUNT];
+extern f32 g_tnt_russian_snow_nodes[TNT_RUSSIAN_SNOW_NODE_COUNT][9];
+extern u8 g_tnt_russian_snow_node_type[TNT_RUSSIAN_SNOW_NODE_COUNT];
+extern s8 g_tnt_russian_snow_parents[TNT_RUSSIAN_SNOW_NODE_COUNT];
+extern u8 g_tnt_russian_snow_node_mesh[TNT_RUSSIAN_SNOW_NODE_COUNT];
+extern f32 g_tnt_russian_snow_mesh_scale[TNT_RUSSIAN_SNOW_MESH_COUNT];
+extern TNTWonderTriangle g_tnt_russian_snow_triangles[TNT_RUSSIAN_SNOW_TRIANGLE_COUNT];
+extern u8 g_tnt_russian_snow_lit[TNT_RUSSIAN_SNOW_TRIANGLE_COUNT];
+extern u8 g_tnt_russian_background_packbits[];
+extern const u32 g_tnt_russian_background_packbits_size;
+extern u16 g_tnt_russian_background_rgba16[256];
+extern u8 g_tnt_russian_candle_ci8[TNT_RUSSIAN_CANDLE_FRAME_COUNT][2*6];
+extern u16 g_tnt_russian_candle_rgba16[TNT_RUSSIAN_CANDLE_FRAME_COUNT][256];
+extern const s16 g_tnt_russian_candle_x[TNT_RUSSIAN_CANDLE_INSTANCE_COUNT];
+extern const s16 g_tnt_russian_candle_y[TNT_RUSSIAN_CANDLE_INSTANCE_COUNT];
+extern const u8 g_tnt_russian_candle_start[TNT_RUSSIAN_CANDLE_INSTANCE_COUNT];
+extern const u8 g_tnt_russian_candle_intra[TNT_RUSSIAN_CANDLE_INSTANCE_COUNT];
+extern u8 g_tnt_russian_sky_anim_902[100];
+extern u8 g_tnt_russian_snow_anim_1371[1312];
+void TNT_Vita_RussianSkyBuildPose(u32 ticks,f32 out_nodes[TNT_RUSSIAN_SKY_NODE_COUNT][9]);
+void TNT_Vita_RussianSnowBuildPose(u32 ticks,f32 out_nodes[TNT_RUSSIAN_SNOW_NODE_COUNT][9]);
+#endif

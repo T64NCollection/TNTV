@@ -1,0 +1,53 @@
+# Native build outputs
+build/
+build*/
+cmake-build-*/
+CMakeFiles/
+CMakeCache.txt
+*.vpk
+*.velf
+*.self
+*.elf
+*.o
+# Build inputs: these shaders are intentionally precompiled
+!third_party/
+!third_party/libvita2d_shaders/
+!third_party/tntv_shaders/
+!third_party/libvita2d_shaders/*_gxp.o
+!third_party/tntv_shaders/*_gxp.o
+
+# User-owned original game data, locally derived caches, private saves
+*.z64
+*.v64
+*.n64
+*.rom
+*.pak
+*.rgba
+*.raw
+*.wav
+*.mp3
+*.ogg
+*.flac
+*.mid
+*.midi
+*.sav
+tntv_scene_cache*.bin
+tntv_music_from_rom*
+
+# Private development history and tests
+output/
+checkpoints/
+*.log
+*.tmp
+*.bak
+TEST*_LINEAGE.txt
+.idea/
+.vscode/
+__pycache__/
+.DS_Store
+
+# Local preparation and archive/checkpoint artifacts, never commit
+RELEASE_READINESS_CHECKLIST.md
+*_PRIVATE.json
+*_PRIVATE.txt
+*.zip

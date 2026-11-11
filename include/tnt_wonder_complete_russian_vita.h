@@ -1,0 +1,30 @@
+#ifndef TNT_WONDER_COMPLETE_RUSSIAN_VITA_H
+#define TNT_WONDER_COMPLETE_RUSSIAN_VITA_H
+
+#include "tnt_wonder_complete_vita.h"
+
+#define TNT_RUSSIAN_COMPLETE_NODE_COUNT 60
+#define TNT_RUSSIAN_COMPLETE_MESH_COUNT 48
+#define TNT_RUSSIAN_COMPLETE_TEXTURE_COUNT 66
+#define TNT_RUSSIAN_COMPLETE_TRIANGLE_COUNT 3740
+#define TNT_RUSSIAN_COMPLETE_TEXEL_COUNT 56064
+#define TNT_RUSSIAN_COMPLETE_UNTEXTURED_TRIANGLE_COUNT 196
+
+extern f32 g_tnt_russian_complete_nodes[TNT_RUSSIAN_COMPLETE_NODE_COUNT][12];
+extern u8 g_tnt_russian_complete_node_type[TNT_RUSSIAN_COMPLETE_NODE_COUNT];
+extern s8 g_tnt_russian_complete_parents[TNT_RUSSIAN_COMPLETE_NODE_COUNT];
+extern u8 g_tnt_russian_complete_node_mesh[TNT_RUSSIAN_COMPLETE_NODE_COUNT];
+extern f32 g_tnt_russian_complete_mesh_scale[TNT_RUSSIAN_COMPLETE_MESH_COUNT];
+extern TNTWonderCompleteTriangle g_tnt_russian_complete_triangles[TNT_RUSSIAN_COMPLETE_TRIANGLE_COUNT];
+extern TNTWonderCompleteTexture g_tnt_russian_complete_textures[TNT_RUSSIAN_COMPLETE_TEXTURE_COUNT];
+extern u16 g_tnt_russian_complete_texels[TNT_RUSSIAN_COMPLETE_TEXEL_COUNT];
+extern u32 g_tnt_russian_complete_untextured_colors[TNT_RUSSIAN_COMPLETE_UNTEXTURED_TRIANGLE_COUNT][3];
+extern u8 g_tnt_russian_complete_anim_889[20748];
+extern u8 g_tnt_russian_complete_anim_890[10628];
+extern u8 g_tnt_russian_complete_anim_891[8356];
+extern u8 g_tnt_russian_complete_anim_1400[8712];
+
+void TNT_Vita_RussianWonderCompleteCamera(u8 mode,u32 ticks,f32 *fovy,f32 *near_plane,f32 *far_plane,f32 *aspect);
+void TNT_Vita_RussianWonderCompleteBuildPose(u8 mode,u32 ticks,f32 out_nodes[TNT_RUSSIAN_COMPLETE_NODE_COUNT][12]);
+
+#endif

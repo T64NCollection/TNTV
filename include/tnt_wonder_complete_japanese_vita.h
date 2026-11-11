@@ -1,0 +1,30 @@
+#ifndef TNT_WONDER_COMPLETE_JAPANESE_VITA_H
+#define TNT_WONDER_COMPLETE_JAPANESE_VITA_H
+
+#include "tnt_wonder_complete_vita.h"
+
+#define TNT_JAPANESE_COMPLETE_NODE_COUNT 109
+#define TNT_JAPANESE_COMPLETE_MESH_COUNT 95
+#define TNT_JAPANESE_COMPLETE_TEXTURE_COUNT 86
+#define TNT_JAPANESE_COMPLETE_TRIANGLE_COUNT 3654
+#define TNT_JAPANESE_COMPLETE_TEXEL_COUNT 54800
+#define TNT_JAPANESE_COMPLETE_UNTEXTURED_TRIANGLE_COUNT 12
+
+extern f32 g_tnt_japanese_complete_nodes[TNT_JAPANESE_COMPLETE_NODE_COUNT][12];
+extern u8 g_tnt_japanese_complete_node_type[TNT_JAPANESE_COMPLETE_NODE_COUNT];
+extern s8 g_tnt_japanese_complete_parents[TNT_JAPANESE_COMPLETE_NODE_COUNT];
+extern u8 g_tnt_japanese_complete_node_mesh[TNT_JAPANESE_COMPLETE_NODE_COUNT];
+extern f32 g_tnt_japanese_complete_mesh_scale[TNT_JAPANESE_COMPLETE_MESH_COUNT];
+extern TNTWonderCompleteTriangle g_tnt_japanese_complete_triangles[TNT_JAPANESE_COMPLETE_TRIANGLE_COUNT];
+extern TNTWonderCompleteTexture g_tnt_japanese_complete_textures[TNT_JAPANESE_COMPLETE_TEXTURE_COUNT];
+extern u16 g_tnt_japanese_complete_texels[TNT_JAPANESE_COMPLETE_TEXEL_COUNT];
+extern u32 g_tnt_japanese_complete_untextured_colors[TNT_JAPANESE_COMPLETE_UNTEXTURED_TRIANGLE_COUNT][3];
+extern u8 g_tnt_japanese_complete_anim_756[31976];
+extern u8 g_tnt_japanese_complete_anim_757[16560];
+extern u8 g_tnt_japanese_complete_anim_758[35824];
+
+void TNT_Vita_JapaneseWonderCompleteCamera(u8 mode,u32 ticks,f32 *fovy,f32 *near_plane,f32 *far_plane,f32 *aspect);
+void TNT_Vita_JapaneseWonderCompleteBuildPose(u8 mode,u32 ticks,f32 out_nodes[TNT_JAPANESE_COMPLETE_NODE_COUNT][12]);
+void TNT_Vita_JapaneseWonderCompleteEffectState(u8 mode,u32 ticks,f32 out_transparency[4]);
+
+#endif

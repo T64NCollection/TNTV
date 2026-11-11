@@ -1,0 +1,29 @@
+#ifndef TNT_WONDER_COMPLETE_EGYPTIAN_VITA_H
+#define TNT_WONDER_COMPLETE_EGYPTIAN_VITA_H
+
+#include "tnt_wonder_complete_vita.h"
+
+#define TNT_EGYPTIAN_COMPLETE_NODE_COUNT 32
+#define TNT_EGYPTIAN_COMPLETE_MESH_COUNT 20
+#define TNT_EGYPTIAN_COMPLETE_TEXTURE_COUNT 50
+#define TNT_EGYPTIAN_COMPLETE_TRIANGLE_COUNT 3139
+#define TNT_EGYPTIAN_COMPLETE_TEXEL_COUNT 44096
+#define TNT_EGYPTIAN_COMPLETE_UNTEXTURED_TRIANGLE_COUNT 30
+
+extern f32 g_tnt_egyptian_complete_nodes[TNT_EGYPTIAN_COMPLETE_NODE_COUNT][12];
+extern u8 g_tnt_egyptian_complete_node_type[TNT_EGYPTIAN_COMPLETE_NODE_COUNT];
+extern s8 g_tnt_egyptian_complete_parents[TNT_EGYPTIAN_COMPLETE_NODE_COUNT];
+extern u8 g_tnt_egyptian_complete_node_mesh[TNT_EGYPTIAN_COMPLETE_NODE_COUNT];
+extern f32 g_tnt_egyptian_complete_mesh_scale[TNT_EGYPTIAN_COMPLETE_MESH_COUNT];
+extern TNTWonderCompleteTriangle g_tnt_egyptian_complete_triangles[TNT_EGYPTIAN_COMPLETE_TRIANGLE_COUNT];
+extern TNTWonderCompleteTexture g_tnt_egyptian_complete_textures[TNT_EGYPTIAN_COMPLETE_TEXTURE_COUNT];
+extern u16 g_tnt_egyptian_complete_texels[TNT_EGYPTIAN_COMPLETE_TEXEL_COUNT];
+extern u32 g_tnt_egyptian_complete_untextured_colors[TNT_EGYPTIAN_COMPLETE_UNTEXTURED_TRIANGLE_COUNT][3];
+extern u8 g_tnt_egyptian_complete_anim_375[10496];
+extern u8 g_tnt_egyptian_complete_anim_376[3592];
+extern u8 g_tnt_egyptian_complete_anim_377[4848];
+
+void TNT_Vita_EgyptianWonderCompleteCamera(u8 mode,u32 ticks,f32 *fovy,f32 *near_plane,f32 *far_plane,f32 *aspect);
+void TNT_Vita_EgyptianWonderCompleteBuildPose(u8 mode,u32 ticks,f32 out_nodes[TNT_EGYPTIAN_COMPLETE_NODE_COUNT][12]);
+
+#endif

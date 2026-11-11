@@ -1,0 +1,121 @@
+#include "vita_compat.h"
+#include "tnt_game_types.h"
+#include <string.h>
+#include <math.h>
+
+static s16 D_8011F270[1024];  // sin lut
+static u32 D_8011FA70;        // prng seed
+
+Trig g_trig_tbl[] = {
+  {  0,  1 },
+  {  1,  0 },
+  {  0, -1 },
+  { -1,  0 },
+};
+
+// unused
+void func_80060680(s32 arg0, Point *arg1, s16 arg2, s16 arg3) {
+  switch (arg0) {
+  case 0:
+    arg1->x = arg2;
+    arg1->y = arg3;
+    break;
+  case 1:
+    arg1->x = -arg3;
+    arg1->y = arg2;
+    break;
+  case 2:
+    arg1->x = -arg2;
+    arg1->y = -arg3;
+    break;
+  case 3:
+    arg1->x = arg3;
+    arg1->y = -arg2;
+    break;
+  }
+}
+
+// unused
+s32 func_80060704(BoundingBox *arg0) {
+  register s32 var_a1;
+  register s32 var_a2;
+
+  var_a1 = arg0->x_max - arg0->x_min + 1;
+  var_a2 = arg0->y_max - arg0->y_min + 1;
+  return var_a1 * var_a2;
+}
+
+void FUN_026900_sets_arg0_struct_to_arg1_arg2(BoundingBox *arg0, s32 arg1, s32 arg2) {
+  register s16 var_a3;
+
+  var_a3 = arg1;
+  arg0->x_max = var_a3;
+  arg0->x_min = var_a3;
+
+  var_a3 = arg2;
+  arg0->y_max = var_a3;
+  arg0->y_min = var_a3;
+}
+
+u8 FUN_026900_80060770_sevenliner(UnkStruct_2 *arg0, f32 arg1) {
+  arg0->alpha += arg0->unk4 * arg1;
+  if (((arg0->unk4 < 0.0f) && (arg0->alpha < arg0->unk8)) || ((arg0->unk4 > 0.0f) && (arg0->alpha > arg0->unk8))) {
+    arg0->alpha = arg0->unk8;
+    arg0->unk4 = 0.0f;
+    return FALSE;
+  }
+  return TRUE;
+}
+
+u32 FUN_026900_PRNG_1(void) {
+  register s32 retVal;
+  register s32 i;
+
+  D_8011FA70++;
+  retVal = 0;
+  for (i = 0; i < 32; i++) {
+    D_8011FA70 = ((D_8011FA70 << 3) | ((D_8011FA70 >> 29) & 7)) ^ 0x80500000;
+    retVal |= (D_8011FA70 & 1) << i;
+  }
+  D_8011FA70 = retVal;
+  return retVal;
+}
+
+void FUN_026900_sets_g8011FA70_to_arg0(u32 arg0) {
+  D_8011FA70 = arg0;
+}
+
+// next_rand(seed)
+u32 FUN_026900_PRNG_2(u32 seed) {
+  register s32 retVal;
+  register s32 i;
+
+  seed++;
+  retVal = 0;
+  for (i = 0; i < 32; i++) {
+    seed = ((seed << 3) | ((seed >> 29) & 7)) ^ 0x80500000;
+    retVal |= (seed & 1) << i;
+  }
+  return retVal;
+}
+
+// sin
+s16 FUN_026900_800608f4_oneliner_shift6_1(u16 arg0) {
+  return D_8011F270[arg0 >> 6];
+}
+
+// cos
+s16 FUN_026900_80060914_oneliner_shift6_2(u16 arg0) {
+  return D_8011F270[(u16)(arg0 + 0x4000) >> 6];
+}
+
+// sin lut with 1024 entries
+void FUN_026900_8006093c_rounds_floors_loops_1024t(void) {
+  register u32 i;
+  register f32 temp_ft2;
+
+  for (i = 0; i < 1024; i++) {
+    temp_ft2 = (i * 3.1415927f) / 512;
+    D_8011F270[i] = sinf(temp_ft2) * 16384;
+  }
+}

@@ -1,0 +1,35 @@
+#ifndef TNT_JAPANESE_GAMEPLAY_VITA_H
+#define TNT_JAPANESE_GAMEPLAY_VITA_H
+#include "tnt_wonder_vita.h"
+#define TNT_JAPANESE_SKY_NODE_COUNT 3
+#define TNT_JAPANESE_SKY_MESH_COUNT 1
+#define TNT_JAPANESE_SKY_TEXTURE_COUNT 8
+#define TNT_JAPANESE_SKY_TRIANGLE_COUNT 64
+#define TNT_JAPANESE_BUTTERFLY_NODE_COUNT 23
+#define TNT_JAPANESE_BUTTERFLY_MESH_COUNT 21
+#define TNT_JAPANESE_BUTTERFLY_TRIANGLE_COUNT 42
+#define TNT_JAPANESE_WATER_FRAME_COUNT 12
+#define TNT_JAPANESE_SPARKLE_FRAME_COUNT 12
+extern f32 g_tnt_japanese_sky_nodes[TNT_JAPANESE_SKY_NODE_COUNT][9];
+extern u8 g_tnt_japanese_sky_node_type[TNT_JAPANESE_SKY_NODE_COUNT];
+extern s8 g_tnt_japanese_sky_parents[TNT_JAPANESE_SKY_NODE_COUNT];
+extern u8 g_tnt_japanese_sky_node_mesh[TNT_JAPANESE_SKY_NODE_COUNT];
+extern f32 g_tnt_japanese_sky_mesh_scale[TNT_JAPANESE_SKY_MESH_COUNT];
+extern TNTWonderTriangle g_tnt_japanese_sky_triangles[TNT_JAPANESE_SKY_TRIANGLE_COUNT];
+extern u16 g_tnt_japanese_sky_textures[TNT_JAPANESE_SKY_TEXTURE_COUNT][1360];
+extern f32 g_tnt_japanese_butterfly_nodes[TNT_JAPANESE_BUTTERFLY_NODE_COUNT][9];
+extern u8 g_tnt_japanese_butterfly_node_type[TNT_JAPANESE_BUTTERFLY_NODE_COUNT];
+extern s8 g_tnt_japanese_butterfly_parents[TNT_JAPANESE_BUTTERFLY_NODE_COUNT];
+extern u8 g_tnt_japanese_butterfly_node_mesh[TNT_JAPANESE_BUTTERFLY_NODE_COUNT];
+extern f32 g_tnt_japanese_butterfly_mesh_scale[TNT_JAPANESE_BUTTERFLY_MESH_COUNT];
+extern TNTWonderTriangle g_tnt_japanese_butterfly_triangles[TNT_JAPANESE_BUTTERFLY_TRIANGLE_COUNT];
+extern u8 g_tnt_japanese_background_packbits[];
+extern const u32 g_tnt_japanese_background_packbits_size;
+extern u16 g_tnt_japanese_background_rgba16[256];
+extern u8 g_tnt_japanese_water_ci8[TNT_JAPANESE_WATER_FRAME_COUNT][254*32];
+extern u16 g_tnt_japanese_water_rgba16[TNT_JAPANESE_WATER_FRAME_COUNT][256];
+extern u8 g_tnt_japanese_sparkle_ci8[TNT_JAPANESE_SPARKLE_FRAME_COUNT][30*29];
+extern u16 g_tnt_japanese_sparkle_rgba16[TNT_JAPANESE_SPARKLE_FRAME_COUNT][256];
+extern u8 g_tnt_japanese_butterfly_anim_1361[71960];
+void TNT_Vita_JapaneseButterfliesBuildPose(u32 ticks,f32 out_nodes[TNT_JAPANESE_BUTTERFLY_NODE_COUNT][9]);
+#endif
