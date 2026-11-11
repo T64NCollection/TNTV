@@ -8,11 +8,11 @@ The setup screen uses the same cybergrid style as loading and displays the probl
 
 | Screen message | Likely cause | What to check |
 |---|---|---|
-| `ROM FILE MISSING` | None of the four supported filenames was found in the expected folder | Verify `ux0:/data/TNTV/` and the full filename, including its extension |
+| `ROM FILE MISSING` | No ROM file with a supported extension was found in the expected folder | Verify `ux0:/data/TNTV/` and the extension (`.z64`, `.v64`, or `.n64`); the file can keep its original name |
 | `ROM VALIDATION FAILED` | A candidate file was found but was the wrong size, byte format or original game revision | Confirm your own USA 1.0 original ROM is exactly 12,582,912 bytes; supported formats are z64, v64 and n64 |
 | `ROM DATA SETUP ERROR` | The ROM was accepted, but scene, UI, art or music preparation failed | Check free space, card accessibility and the loader status/timing logs; leave the existing save untouched |
 
-**File precedence matters:** `baserom.us.z64`, then `baserom.z64`, then `baserom.v64`, then `baserom.n64`. The first file that opens is validated. If it is wrong, TNTV does not silently fall through to later alternatives.
+**File precedence matters when multiple ROMs are present:** `baserom.us.z64`, then `baserom.z64`, then `baserom.v64`, then `baserom.n64`, then `New Tetris, The (USA).z64`, then `The New Tetris (USA).z64`. If none of these exists, TNTV scans for other `.z64`, `.v64` and `.n64` filenames in lexical order. The first file that opens is validated; an invalid one will not be silently skipped. It does not rename files.
 
 ## It looks like loading is taking a long time
 
@@ -22,7 +22,7 @@ Avoid closing TNTV or interrupting storage access during initial asset generatio
 
 ## The ROM is already in place, but retry doesn't work
 
-Use VitaShell to check the exact filename and directory. If both `baserom.us.z64` and `baserom.z64` are present, for example, the first name wins even if it is the wrong revision. Preserve your own original ROM and correct the naming/placement; don't change save files or copy another game's image over the original.
+Use VitaShell to check the directory and filename extension. For example, if both `baserom.us.z64` and `New Tetris, The (USA).z64` are present, the first name wins even if it is the wrong revision. Keep only your compatible ROM in the folder and preserve its existing filename. Don't change saves or overwrite any other files.
 
 After correcting the file, return to TNTV and press **X** to retry, or exit and relaunch.
 

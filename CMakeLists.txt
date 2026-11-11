@@ -65,6 +65,7 @@ add_executable(${PROJECT_NAME}
   src/main.c
   src/tntv_rom_bridge.c
   romloader/tntv_rom_reader.c
+  romloader/tntv_rom_locator.c
   romloader/tntv_music_builder.c
   romloader/tntv_fx_reader.c
   romloader/tntv_img_reader.c

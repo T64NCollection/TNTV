@@ -54,12 +54,16 @@ game-resource cache.
 
 ## Installation
 
-Install the VPK using VitaShell. Place a copy of your original supported
-ROM under `ux0:/data/TNTV/` with one of the following filenames:
-`baserom.us.z64`, `baserom.z64`, `baserom.v64`, or `baserom.n64`.
+Install the VPK using VitaShell. Place your supported original ROM in
+`ux0:/data/TNTV/`. **No renaming is necessary:** TNTV recognizes common
+filenames such as `New Tetris, The (USA).z64` and
+`The New Tetris (USA).z64`, the traditional `baserom.*` names, and
+other filenames ending in `.z64`, `.v64`, or `.n64`.
 
-The app looks for the first existing candidate in that order. Keep
-the ROM in place even after the first successful launch. Asset extraction
+If multiple ROM images exist, familiar filenames take priority; otherwise
+the first filename in lexical order is chosen. ROM *contents* still must
+match the supported USA 1.0 revision. Keep the ROM in place after
+the first successful launch. Asset extraction
 takes longer on initial setup; later runs reuse verified private caches.
 
 Read [INSTALLATION.md](INSTALLATION.md) for detailed steps and controls,
@@ -89,6 +93,7 @@ offline project checks can also be run:
 bash tools/rebuild_texedge_shader_object.sh
 python3 -B tools/check_repository_completeness.py
 python3 -B tools/check_runtime_docs.py
+python3 -B tools/test_rom_locator.py  # needs a host C compiler
 python3 -B tools/audit_release_artifacts.py --vpk ../tntv-build/new_tetris_vita.vpk
 ```
 

@@ -4,6 +4,7 @@
  */
 #include "tntv_rom_bridge.h"
 #include "tntv_rom_reader.h"
+#include "tntv_rom_locator.h"
 #include "tntv_img_reader.h"
 #include "tntv_cache_reader.h"
 #include "tntv_cache_builder.h"
@@ -234,20 +235,6 @@ static int require_verified_rom(TNTVRom *rom,const char *reason) {
     }
     return TNTV_ROM_OK;
 }
-static const char *find_rom(void) {
-    static const char *const candidates[]={
-        TNTV_DATA_DIR "/baserom.us.z64",
-        TNTV_DATA_DIR "/baserom.z64",
-        TNTV_DATA_DIR "/baserom.v64",
-        TNTV_DATA_DIR "/baserom.n64"
-    };
-    unsigned i;
-    for(i=0;i<sizeof(candidates)/sizeof(candidates[0]);i++){
-        FILE *f=fopen(candidates[i],"rb");
-        if(f){fclose(f);return candidates[i];}
-    }
-    return NULL;
-}
 /* Palette arrays are native uint16_t. The ROM cache stores each N64 RGBA16
  * numeric pixel in big-endian byte order, unlike ARM's native little-endian
  * memory layout. Load each item by numeric value to preserve exact colors.
@@ -285,10 +272,12 @@ int TNTV_ROM_BridgeBoot(void) {
      * This eliminates nested 78KB main +39KB cache stack pressure. */
     static TNTVCache cache;
     const char *path;
+    char rom_path[512];
     int rc;
     s_boot_start=s_boot_previous=boot_us();s_boot_timing_used=0;s_scene_progress_steps=0;
     sceIoMkdir(TNTV_DATA_DIR,0777);
-    path=find_rom();
+    path=tntv_rom_find_in_directory(TNTV_DATA_DIR,rom_path,sizeof(rom_path))
+        ? rom_path : NULL;
     if(path)write_status("208D ROM FOUND: verifying supported USA 1.0 revision");
     if(!path){
         write_status("TEST126R ROM MISSING: supply USA 1.0 in ux0:data/TNTV");

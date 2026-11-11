@@ -16,27 +16,32 @@ TNTV distributes neither an original ROM nor an extracted music/art archive. Do 
 1. Transfer the TNTV VPK to a convenient local location such as `ux0:/download/`.
 2. Open VitaShell and install the VPK.
 3. In VitaShell, create the directory `ux0:/data/TNTV/` if it does not exist. The initial loader also attempts to create it.
-4. Transfer **your own original compatible ROM** into that directory. Use **one** of the names below, matching its existing file byte order:
+4. Transfer **your own original compatible ROM** into that directory. **Keep its existing filename.** TNTV recognizes common names like `New Tetris, The (USA).z64` and `The New Tetris (USA).z64`, the older `baserom.*` names, and other ROM files ending in `.z64`, `.v64`, or `.n64`.
 
-   - `baserom.us.z64` or `baserom.z64` — standard big-endian N64 ROM
-   - `baserom.v64` — byte-swapped N64 ROM
-   - `baserom.n64` — little-endian N64 ROM
-
-   All three byte orders are supported directly. No PC-side conversion or patching is required. Renaming an unsupported version does not make it compatible.
+   All three byte orders are supported directly, regardless of filename. No renaming, PC-side conversion, or patching is required. An unsupported ROM version will still fail content validation.
 
 5. Launch **TNTV** from LiveArea. The first launch checks the supported ROM and prepares local game graphics, animation scenes and soundtrack caches. This takes longer than ordinary launches.
 6. When loading completes, play normally. **Leave the original ROM in place**; even a warm launch checks for it and validates it.
 
 ## If multiple candidates exist
 
-The loader selects the **first file it can open**, in this exact order:
+The loader prefers the **first existing file** in the following order:
 
 1. `baserom.us.z64`
 2. `baserom.z64`
 3. `baserom.v64`
 4. `baserom.n64`
+5. `New Tetris, The (USA).z64`
+6. `The New Tetris (USA).z64`
 
-If an earlier file exists but is the wrong version, TNTV rejects it rather than automatically skipping to another filename. Keep only the compatible original ROM candidate in this directory to avoid confusion.
+If none of those names exists, TNTV scans the same directory for any
+`.z64`, `.v64` or `.n64` file (extension case-insensitive), selecting
+the first filename in lexical order. It does not search subdirectories.
+
+**For best results, keep one ROM in this directory.** If the first candidate
+exists but is an unsupported revision, TNTV will reject it rather than
+silently fall through to another ROM. It never renames, moves or copies
+the ROM file.
 
 ## First launch and subsequent launches
 

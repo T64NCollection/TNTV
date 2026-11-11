@@ -13,7 +13,10 @@ import re
 import sys
 
 
-REQUIRED_NAMES = ("baserom.us.z64", "baserom.z64", "baserom.v64", "baserom.n64")
+REQUIRED_NAMES = (
+    "baserom.us.z64", "baserom.z64", "baserom.v64", "baserom.n64",
+    "New Tetris, The (USA).z64", "The New Tetris (USA).z64",
+)
 CACHES = (
     "tntv_rom_bridge_v6.pak",
     "tntv_scene_cache_v1.bin",
@@ -46,6 +49,7 @@ def main():
     troubleshoot = text("TROUBLESHOOTING.md")
     art = text("ART_ASSET_PROVENANCE.md")
     bridge = text("src/tntv_rom_bridge.c")
+    locator = text("romloader/tntv_rom_locator.c")
     romh = text("romloader/tntv_rom_reader.h")
     control = text("src/vita_input.c")
     save = text("src/tnt_sram_vita.c")
@@ -64,18 +68,22 @@ def main():
     if not all(name in install and name in troubleshoot for name in REQUIRED_NAMES):
         issues.append("ROM candidate filenames absent from install/troubleshooting guide")
 
-    match = re.search(r"static const char \*const candidates\[\]\s*=\s*\{(.*?)\};", bridge, re.S)
+    match = re.search(r"static const char \*const candidates\[\]\s*=\s*\{(.*?)\};", locator, re.S)
     if match is None:
         issues.append("Unable to read actual ROM filename priority from loader")
     else:
-        actual = re.findall(r'"/(baserom\.[^"]+)"', match.group(1))
+        actual = re.findall(r'"([^"]+)"', match.group(1))
         if tuple(actual) != REQUIRED_NAMES:
             issues.append("Supported ROM filename precedence changed: " + repr(actual))
     pos = [install.find("`" + name + "`") for name in REQUIRED_NAMES]
     if not all(i >= 0 for i in pos):
         issues.append("Install guide missing one or more ROM candidate labels")
-    if "first file" not in install.lower() or "first file" not in troubleshoot.lower():
+    if "first" not in install.lower() or "first file" not in troubleshoot.lower():
         issues.append("Multi-file selection/precedence warning missing")
+    if ("sceIoDopen" not in locator or "opendir(" not in locator or
+        "is_rom_filename" not in locator or
+        "tntv_rom_find_in_directory" not in bridge):
+        issues.append("Host/Vita ROM filename discovery not connected")
 
     for name in CACHES:
         if name not in bridge or name not in troubleshoot:
@@ -112,7 +120,7 @@ def main():
         for issue in issues:
             print("FAIL:", issue)
         return 1
-    print("PASS: original-ROM size, directory, 4 filename priority, 3 caches, "
+    print("PASS: original-ROM size, directory, 6 filename priority + extension scan, 3 caches, "
           "SRAM save, ROM setup controls, UI messages and Vita title ID match docs.")
     print("PASS: 4 packaged artwork/template hashes match approved Test216D ledger.")
     print("PASS: README links all verified installation/troubleshooting/art records.")
