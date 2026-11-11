@@ -10,16 +10,27 @@ all four controllers connected using a mix of DualShock 3 and DualShock 4
 controllers. Testing covered garbage attacks, target switching, Hot Potato,
 pause/resume, and post-match results and line rewards.
 
+Just as much work went into restoring the **WONDERS progression**: the
+stage-by-stage construction milestones, animated transitions, completed
+Wonders, the WONDERS Hall (including in-progress and locked displays),
+and the ending sequence. These are playable features, not static previews.
+The stages and sequences have been repeatedly checked and tuned on real
+Vita hardware, alongside the couch multiplayer modes.
+
 TNTV's particular focus is the complete handheld-and-couch experience:
-multiplayer on real hardware, native Vita rendering and performance work,
-and straightforward setup from your own ROM directly on the device.
+hardware-tested multiplayer, restored Wonders and progression, native Vita
+rendering and performance work, and on-device setup using your own ROM.
 Other Vita ports deserve credit for their work too; TNTV is another approach
 to bringing this game to Vita, with its own implementation and priorities.
 
 - **Single-player and local multiplayer:** original game modes, stages and
   progression, with up to four players on PSTV / Vita TV.
-- **Music and WONDERS:** original soundtrack reconstructed from your ROM,
-  WONDERS Hall, construction sequences and saved progress.
+- **Wonders and progression:** seven original culture stages, milestone
+  construction animations, WONDERS Hall with completed/in-progress/locked
+  states, the finale, and persistent unlock progress.
+- **Music and secrets:** original soundtrack reconstructed from your ROM;
+  known original name-entry cheats are supported and tested. Curious
+  players might find an extra surprise or two.
 - **Native Vita presentation:** GXM rendering, stage-specific visual fixes,
   performance tuning and an FPS display for real-hardware play.
 - **On-device ROM setup:** support for .z64, .v64 and .n64 byte orders,
