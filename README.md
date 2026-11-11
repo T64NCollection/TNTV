@@ -1,149 +1,94 @@
-# TNTV — The New Tetris for PS Vita & PlayStation TV
+# The New Tetris for PS Vita & PlayStation TV (TNTV)
 
-Take *The New Tetris* on the go—or bring four controllers to the couch.
-TNTV is a native, unofficial port of the Nintendo 64 game for **PS Vita**
-and **PlayStation TV (PSTV / Vita TV)**.
+[![Platform: PS Vita / PSTV](https://img.shields.io/badge/Platform-PS%20Vita%20%7C%20PSTV-1863AE)](https://github.com/T64NCollection/TNTV)
+[![Players: 1–4](https://img.shields.io/badge/Players-1%E2%80%934-blueviolet)](https://github.com/T64NCollection/TNTV)
+[![Release: v1.0-rc2](https://img.shields.io/badge/Release-v1.0--rc2-brightgreen)](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2)
 
-**Up to four players on real PSTV hardware is a major focus of this port.**
-Two-, three-, and four-player gameplay has been tested on Vita TV, with
-all four controllers connected using a mix of DualShock 3 and DualShock 4
-controllers. Testing covered garbage attacks, target switching, Hot Potato,
-pause/resume, and post-match results and line rewards.
+**TNTV** is an unofficial native port of the Nintendo 64 classic *The New Tetris* for **PS Vita** and **PlayStation TV (PSTV / Vita TV)**, with an emphasis on the complete original experience—including its Wonders and four-player gameplay.
 
-**All eight original solo gameplay stages were brought to approximately
-60 FPS under normal tested conditions**, including Industrial/Finale. This
-took extensive stage-specific rendering, background, sky, effects and
-playfield optimization, not merely a frame-rate cap change. Particularly
-full boards can briefly dip below 60; the Russian sky is an approximation
-rather than an exact N64 match.
+**[Download TNTV v1.0-rc2](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2)**
 
-Just as much work went into restoring the **WONDERS progression**: the
-stage-by-stage construction milestones, animated transitions, completed
-Wonders, the WONDERS Hall (including in-progress and locked displays),
-and the ending sequence. These are playable features, not static previews.
-The stages and sequences have been repeatedly checked and tuned on real
-Vita hardware, alongside the couch multiplayer modes.
+---
 
-TNTV's particular focus is the complete handheld-and-couch experience:
-hardware-tested multiplayer, restored Wonders and progression, native Vita
-rendering and performance work, and on-device setup using your own ROM.
-Other Vita ports deserve credit for their work too; TNTV is another approach
-to bringing this game to Vita, with its own implementation and priorities.
+## ✨ Features
 
-- **Optimized solo gameplay:** all seven original cultural stages and
-  the Industrial/Finale board run around 60 FPS in normal tested gameplay;
-  dense boards may briefly dip. Versus-opponent and 4P remain around 30 FPS.
-- **Single-player and local multiplayer:** original game modes, stages and
-  progression, with up to four players on PSTV / Vita TV.
-- **Wonders and progression:** seven original culture stages, milestone
-  construction animations, WONDERS Hall with completed/in-progress/locked
-  states, the finale, and persistent unlock progress.
-- **Music and secrets:** original soundtrack reconstructed from your ROM;
-  known original name-entry cheats are supported and tested. Curious
-  players might find an extra surprise or two.
-- **Native Vita presentation:** GXM rendering, stage-specific visual fixes,
-  performance tuning and an FPS display for real-hardware play.
-- **On-device ROM setup:** supports original .z64, .v64 and .n64 images,
-  ROM revision validation, visible loading progress and reusable local caches.
+- **🎮 All eight solo stages, optimized:** The seven cultural stages and Industrial/Finale gameplay have been tuned for **approximately 60 FPS** on tested Vita hardware, with extensive work on stage scenery, skies, effects and playfield rendering.
+- **👥 Genuine four-player PSTV support:** Local **2-, 3- and 4-player** games tested with four physical **DualShock 3 / DualShock 4** controllers. Includes garbage attacks, targeting, Hot Potato and full match results.
+- **🏛️ The complete Wonders experience:** Seven cultures, construction milestones, animations, WONDERS Hall displays and the finale—with saved progression and unlocks.
+- **🎵 Original sound and presentation:** Soundtrack reconstructed locally from your ROM, original sound effects, native Vita rendering and custom cybergrid pillarboxes.
+- **🧩 Original gameplay and extras:** Original modes, rotation rules, hold mechanics, name-entry cheats and perhaps a surprise or two. Includes an optional FPS display.
 
-[Download TNTV v1.0-rc2](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2).
+TNTV is a separate approach to bringing this game to Vita, with particular attention to **visual fidelity, Wonders progression and multiplayer on actual PSTV hardware**.
 
-**A supported original N64 game ROM supplied by the player is required.**
-Neither the application VPK nor the source package includes the original
-game ROM, original soundtrack, copied artwork pack, save data, or generated
-game-resource cache.
+## 🎮 Controls
 
-## What you need
+The controls below apply to the PS Vita, or to a paired DualShock 3/4 on PSTV (where **L/R** correspond to **L1/R1**).
 
-- A PlayStation Vita or PlayStation TV that can install homebrew VPKs using VitaShell.
-- TNTV's VPK, built with VitaSDK as explained below.
-- Your own supported original USA 1.0 N64 ROM of *The New Tetris*,
-  exactly **12,582,912 bytes (12 MiB)**.
-- Storage for the ROM and local scene, music, and graphics caches.
+| Action | PS Vita / PSTV controls |
+|---|---|
+| Move piece | D-pad **Left / Right** |
+| Soft drop | D-pad **Down** |
+| Hard drop | D-pad **Up** |
+| Rotate clockwise | **Cross (×)** |
+| Rotate counterclockwise | **Circle (○)** |
+| Hold / swap piece | **L / L1** |
+| Pause / Start | **Start** |
+| Menu navigation | **D-pad** (left stick where supported) |
+| Confirm / Back | **Cross (×) / Circle (○)** |
+| Target left / right | **Square / Triangle** (3–4 player **Directed** games) |
+| Original N64 R input | **R / R1** (context-dependent) |
+| Toggle FPS display | **L + R + Select** |
 
-## Installation
+The same controller mappings apply to each player on PSTV. Multiplayer requires enough paired controllers.
 
-Install the VPK using VitaShell. Place your supported original ROM in
-`ux0:/data/TNTV/`. **No renaming is necessary:** TNTV recognizes common
-filenames such as `New Tetris, The (USA).z64` and
-`The New Tetris (USA).z64`, the traditional `baserom.*` names, and
-other filenames ending in `.z64`, `.v64`, or `.n64`.
+## 📦 Installation
 
-If multiple ROM images exist, familiar filenames take priority; otherwise
-the first filename in lexical order is chosen. ROM *contents* still must
-match the supported USA 1.0 revision. Keep the ROM in place after
-the first successful launch. Asset extraction
-takes longer on initial setup; later runs reuse verified private caches.
+1. Download [the latest TNTV player package](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc2), extract it and install the **VPK** using **VitaShell**.
+2. Put **your own compatible USA 1.0 Nintendo 64 ROM** of *The New Tetris* (**12,582,912 bytes / 12 MiB**) in `ux0:/data/TNTV/`.
+3. Leave the ROM's filename alone. TNTV accepts `.z64`, `.v64` and `.n64` files, including their common original names. For best results, keep just one ROM in the folder.
+4. Launch TNTV. The first run prepares graphics, scenes and music from your ROM; later launches reuse local caches.
 
-Read [INSTALLATION.md](INSTALLATION.md) for detailed steps and controls,
-and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) for ROM and cache errors.
-**Never delete `ux0:/data/TNTV/tntv_sram.bin` to troubleshoot asset
-loading; it contains profiles, progress and high scores.**
+**No ROM or original game media is included.** Keep your ROM on the device after setup. To preserve names, scores and Wonder progress, **do not delete** `ux0:/data/TNTV/tntv_sram.bin`.
 
-## Compiling TNTV
+See [INSTALLATION.md](INSTALLATION.md) for a detailed walkthrough or [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if a ROM fails validation.
 
-You need VitaSDK, CMake 3.16 or newer, a CMake-supported build tool
-(such as Make), and Python 3.9 or newer for the offline checks, with the
-`VITASDK` environment variable set to
-the installed SDK prefix. The original game ROM is *not required* to
-compile the VPK; it is required only to run the program on Vita.
+## 🛠️ Building from source
+
+Install [VitaSDK](https://vitasdk.org/), CMake 3.16+ and a CMake-supported build tool, then run:
 
 ```sh
 cmake -S . -B ../tntv-build
 cmake --build ../tntv-build -j2
 ```
 
-The resulting VPK is `../tntv-build/new_tetris_vita.vpk`. Keep build
-output outside the source folder so the source hygiene audit can check
-exactly what will be distributed. With VitaSDK installed,
-offline project checks can also be run:
+The output is `../tntv-build/new_tetris_vita.vpk`. **A ROM is not needed to compile TNTV.**
+
+<details>
+<summary>Source checks and repository layout</summary>
+
+Offline validation tools (Python 3.9+; the ROM filename test also needs a host C compiler):
 
 ```sh
 bash tools/rebuild_texedge_shader_object.sh
 python3 -B tools/check_repository_completeness.py
 python3 -B tools/check_runtime_docs.py
-python3 -B tools/test_rom_locator.py  # needs a host C compiler
+python3 -B tools/test_rom_locator.py
 python3 -B tools/audit_release_artifacts.py --vpk ../tntv-build/new_tetris_vita.vpk
 ```
 
-The shader command recreates an ELF object from the bundled compiled GXM
-program; it does not regenerate the original high-level shader source.
-These checks verify source completeness, installation documentation and packaging.
-A clean separate source build has passed on the development toolchain,
-but independent second-machine reproducibility is not established yet.
+- `src/`, `include/` — game logic and native Vita code
+- `romloader/` — ROM verification and local asset generation
+- `sce_sys/` — LiveArea and bubble artwork
+- `third_party/`, `tools/` — dependencies, shaders and validation tools
 
-## Directory guide
+The shader helper reconstructs an ELF object from the bundled compiled program; it does not recreate the original high-level source.
 
-- `src/` and `include/` — reconstructed game logic and native Vita support
-- `romloader/` — user-ROM validation and on-device asset construction
-- `third_party/` — decoder and shader dependencies
-- `sce_sys/` — Vita LiveArea and icon resources
-- `tools/` — offline validation and shader-object reconstruction
+</details>
 
-## Known limitations
+## 📝 Notes & credits
 
-Full-length WONDERS cinematic sequences aren't guaranteed to run at
-60 FPS; some game scenes intentionally run at 30 FPS. Faster first-boot
-resource preparation is possible future work. The original ROM must
-remain present for each launch.
+**Performance varies by scene and player count**; the ~60 FPS figure describes normal *solo stage gameplay*, not every game mode or cinematic. Some visuals, notably the Russian sky, are approximations.
 
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the first-release summary.
+TNTV adapts the reconstruction by [chris-gilmore/tnt-splat](https://github.com/chris-gilmore/tnt-splat). Porting and optimization involved **substantial AI assistance** and extensive testing on PS Vita and PSTV. Thanks to the original developers and the VitaSDK and homebrew communities.
 
-## Credits
-
-TNTV adapts the game reconstruction from
-[chris-gilmore/tnt-splat](https://github.com/chris-gilmore/tnt-splat).
-Porting and optimization involved substantial AI assistance and extensive
-hands-on testing on PS Vita and PSTV / Vita TV.
-
-Thanks to the VitaSDK, homebrew and decompilation communities, and the
-original game's creators. This is an unofficial fan project, unaffiliated
-with the original game's owners. Original copyrights and trademarks remain
-with their respective owners.
-
-See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
-[UPSTREAM_SOURCES.md](UPSTREAM_SOURCES.md) for component credits,
-[PROVENANCE_REVIEW.md](PROVENANCE_REVIEW.md) for the source and asset overview,
-and [ART_ASSET_PROVENANCE.md](ART_ASSET_PROVENANCE.md) for the packaged
-LiveArea artwork record. Component license texts are preserved alongside
-their respective dependencies.
+This is an **unofficial fan project** unaffiliated with the game's owners. See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md), [UPSTREAM_SOURCES.md](UPSTREAM_SOURCES.md), [PROVENANCE_REVIEW.md](PROVENANCE_REVIEW.md) and [ART_ASSET_PROVENANCE.md](ART_ASSET_PROVENANCE.md) for component notices and credits.

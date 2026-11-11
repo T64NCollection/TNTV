@@ -2,37 +2,29 @@
 
 ## Highlights
 
-- Native *The New Tetris* gameplay on PS Vita and PlayStation TV (PSTV / Vita TV).
-- **All eight solo gameplay stages optimized for approximately 60 FPS in
-  ordinary tested conditions**, with extensive restoration of skies,
-  backgrounds, effects and playfields. Heavy stacks may dip; the Russian
-  sky is an approximation rather than an exact N64 reproduction.
-- **Hardware-tested two-, three-, and four-player local multiplayer on PSTV**, using DualShock 3 and DualShock 4 controllers, including garbage attacks, targeting, Hot Potato and match results.
-- **Extensively restored Wonders:** progression through all seven culture stages, construction milestones and animations, WONDERS Hall (completed, in-progress and locked presentations), the finale, and saved unlock progress. These sequences received extensive visual and performance testing on hardware.
-- Original soundtrack reconstructed locally from the user's ROM, supported and tested original name-entry cheats, and perhaps an undisclosed surprise or two.
-- Native Vita rendering and performance improvements, FPS display, and the hardware-tested Greek skybox correction.
-- On-device ROM setup with loading progress, support for .z64, .v64 and .n64 byte orders, and recognition of common original ROM filenames without renaming.
+- **Eight optimized solo stages:** The seven original cultural environments plus Industrial/Finale, tuned for **approximately 60 FPS** in normal single-player gameplay.
+- **Hardware-tested 2–4 player PSTV multiplayer:** DualShock 3 and DualShock 4 controllers, garbage, targeting, Hot Potato and match results.
+- **Restored Wonders:** Construction milestones, cinematic sequences, WONDERS Hall and finale, with saved progression.
+- **Original game experience:** Music reconstructed from your ROM, sound effects, native Vita rendering, original name-entry cheats and an FPS toggle.
+- **Simple ROM setup:** Accepts compatible `.z64`, `.v64` and `.n64` filenames as-is.
 
-## Setup
+## Getting started
 
-Supply your own supported USA 1.0 N64 ROM of *The New Tetris*, exactly
-12,582,912 bytes (12 MiB). No ROM, extracted soundtrack, game-art archive,
-generated cache or save data is bundled. See INSTALLATION.md.
+Install `TNTV_v1.0_RC2.vpk` through VitaShell and place your own original
+*The New Tetris* **USA 1.0 N64 ROM (12,582,912 bytes)** in
+`ux0:/data/TNTV/`. No renaming is needed. The first launch creates local
+game-resource caches; preserve `tntv_sram.bin` to keep saved progress.
 
-## Performance
+Controls are listed in [README.md](README.md). For a complete setup guide,
+see [INSTALLATION.md](INSTALLATION.md).
 
-Normal solo-stage gameplay generally runs near 60 FPS on tested Vita
-hardware. Heavy stacks can cause dips; versus-opponent and four-player
-play operate near 30 FPS. Other multiplayer modes and menus vary, and
-some full WONDERS cinematic sequences run at 30 FPS. Interactive
-WONDERS Hall scenes can approach 60 FPS. First launch creates local
-caches and takes longer than later launches. Further startup and
-cinematic optimization is planned for future work.
+**Note:** Solo stage gameplay is optimized for around 60 FPS; performance
+varies by mode and scene.
 
 ## Credits
 
-Game reconstruction adapted from chris-gilmore/tnt-splat. Porting and
-optimization involved substantial AI assistance and real-device testing.
-See THIRD_PARTY_NOTICES.md and UPSTREAM_SOURCES.md for component credits.
-This is an unofficial fan project; original copyrights and trademarks
-remain with their respective owners.
+Based on the game reconstruction by chris-gilmore/tnt-splat, with
+substantial AI assistance in porting and optimization and hands-on PS Vita
+and PSTV hardware testing. This is an unofficial fan project. Component
+notices and acknowledgments are in THIRD_PARTY_NOTICES.md and
+UPSTREAM_SOURCES.md.
