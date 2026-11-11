@@ -1,6 +1,6 @@
 # TNTV installation and first launch
 
-This guide describes the ROM loader used in hardware-approved Test216D. TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV (PSTV / Vita TV).
+This guide describes the ROM loader used in hardware-tested Test217D. TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV (PSTV / Vita TV).
 
 ## Requirements
 
