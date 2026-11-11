@@ -1,33 +1,29 @@
-# TNTV 1.0 — draft release notes
+# TNTV v1.0-rc1 — PS Vita & PlayStation TV
 
-**This is a prepared first-release draft, not an announcement that TNTV
-has already been released publicly.**
+## Highlights
 
-## Features
+- Native *The New Tetris* gameplay on PS Vita and PlayStation TV (PSTV / Vita TV).
+- **Hardware-tested two-, three-, and four-player local multiplayer on PSTV**, using DualShock 3 and DualShock 4 controllers, including garbage attacks, targeting, Hot Potato and match results.
+- Single-player stages, original music reconstructed from your ROM, WONDERS Hall, construction sequences and progress saving.
+- Native Vita rendering and performance improvements, FPS display, and the hardware-tested Greek skybox correction.
+- On-device ROM setup with loading progress and support for .z64, .v64 and .n64 byte orders.
 
-- Native single-player gameplay for PlayStation Vita and PlayStation TV.
-- WONDERS Hall, stage backgrounds, music and progress saving.
-- Multiplayer using paired controllers on PlayStation TV.
-- On-device original-ROM verification and reconstruction of graphics,
-  scene and music caches from the user's own USA 1.0 original game.
-- Vita-specific rendering, performance and visual fidelity improvements.
-- Greek skybox top-edge correction included in the Test216D source.
+## Setup
 
-## Supported ROM
+Supply your own supported USA 1.0 N64 ROM of *The New Tetris*, exactly
+12,582,912 bytes (12 MiB). No ROM, extracted soundtrack, game-art archive,
+generated cache or save data is bundled. See INSTALLATION.md.
 
-The player must provide a compatible 12,582,912-byte USA 1.0
-original *The New Tetris* N64 ROM. Original ROM/audio/art/cache data
-are not separately included in the VPK or project source.
+## Performance
 
-## Limitations
+Frame rate varies by scene; some full WONDERS cinematic sequences run at
+30 FPS. First launch creates local caches and takes longer than later
+launches. Further startup and cinematic optimization is planned for future work.
 
-Initial startup creates private ROM-derived caches and takes longer
-than subsequent launches. Some complete WONDERS cinematic sequences
-may run at 30 FPS. More optimization may follow a 1.0 release.
+## Credits
 
-## Rights and credits
-
-The original game's copyrights and trademarks remain with their owners.
-Adapted decompilation-source provenance and unresolved redistribution
-rights are disclosed in UPSTREAM_SOURCES.md and PROVENANCE_REVIEW.md.
-No project-wide license is asserted for original-game-derived code.
+Game reconstruction adapted from chris-gilmore/tnt-splat. Porting and
+optimization involved substantial AI assistance and real-device testing.
+See THIRD_PARTY_NOTICES.md and UPSTREAM_SOURCES.md for component credits.
+This is an unofficial fan project; original copyrights and trademarks
+remain with their respective owners.

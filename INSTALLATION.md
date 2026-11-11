@@ -1,6 +1,6 @@
 # TNTV installation and first launch
 
-This guide describes the ROM loader used in hardware-approved Test216D. TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV.
+This guide describes the ROM loader used in hardware-approved Test216D. TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV (PSTV / Vita TV).
 
 ## Requirements
 
@@ -46,7 +46,7 @@ If an earlier file exists but is the wrong version, TNTV rejects it rather than 
 
 TNTV's music, artwork and game data are produced **locally from your own ROM**; they are not included in the application package.
 
-## PlayStation TV and controls
+## PlayStation TV (PSTV / Vita TV) and controls
 
 The Vita control adapter maps **Cross to original N64 A**, **Circle to N64 B**, **Start to original Start**, the D-pad to N64 directions, L/R shoulder buttons to N64 L/R, and **Triangle/Square** to the port's N64 additional-button mappings. Analog left-stick movement is adapted to N64 stick input. In multiplayer, PlayStation TV detects paired DS3/DS4 controllers by external controller ports.
 

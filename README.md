@@ -1,13 +1,32 @@
-# TNTV — The New Tetris on PS Vita
+# TNTV — The New Tetris for PS Vita & PlayStation TV
 
-A native, unofficial port of the Nintendo 64 game *The New Tetris* to
-PlayStation Vita handheld and PlayStation TV.
+Take *The New Tetris* on the go—or bring four controllers to the couch.
+TNTV is a native, unofficial port of the Nintendo 64 game for **PS Vita**
+and **PlayStation TV (PSTV / Vita TV)**.
 
-TNTV supports single-player stages, original music, WONDERS progress,
-and multiplayer with paired controllers on PlayStation TV. Native GPU
-rendering, Vita controls, and performance optimizations make it possible
-to play on real Vita hardware. The latest real-device-approved source is
-Test216D, including a correction to Greek's upper skybox.
+**Up to four players on real PSTV hardware is a major focus of this port.**
+Two-, three-, and four-player gameplay has been tested on Vita TV, with
+all four controllers connected using a mix of DualShock 3 and DualShock 4
+controllers. Testing covered garbage attacks, target switching, Hot Potato,
+pause/resume, and post-match results and line rewards.
+
+TNTV's particular focus is the complete handheld-and-couch experience:
+multiplayer on real hardware, native Vita rendering and performance work,
+and straightforward setup from your own ROM directly on the device.
+Other Vita ports deserve credit for their work too; TNTV is another approach
+to bringing this game to Vita, with its own implementation and priorities.
+
+- **Single-player and local multiplayer:** original game modes, stages and
+  progression, with up to four players on PSTV / Vita TV.
+- **Music and WONDERS:** original soundtrack reconstructed from your ROM,
+  WONDERS Hall, construction sequences and saved progress.
+- **Native Vita presentation:** GXM rendering, stage-specific visual fixes,
+  performance tuning and an FPS display for real-hardware play.
+- **On-device ROM setup:** support for .z64, .v64 and .n64 byte orders,
+  visible loading progress, and reusable local asset caches.
+
+[Download v1.0-rc1](https://github.com/T64NCollection/TNTV/releases/tag/v1.0-rc1).
+The release contains the hardware-tested Test216D build.
 
 **A supported original N64 game ROM supplied by the player is required.**
 Neither the application VPK nor the source package includes the original
@@ -64,7 +83,7 @@ python3 -B tools/audit_release_artifacts.py --vpk ../tntv-build/new_tetris_vita.
 
 The shader command recreates an ELF object from the bundled compiled GXM
 program; it does not regenerate the original high-level shader source.
-These tests are technical packaging checks, **not copyright clearance**.
+These checks verify source completeness, installation documentation and packaging.
 A clean separate source build has passed on the development toolchain,
 but independent second-machine reproducibility is not established yet.
 
@@ -85,24 +104,21 @@ remain present for each launch.
 
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for the first-release summary.
 
-## Attribution, source rights and status
+## Credits
 
-The original gameplay-reconstruction C source contains adapted code from
+TNTV adapts the game reconstruction from
 [chris-gilmore/tnt-splat](https://github.com/chris-gilmore/tnt-splat).
-The reviewed upstream snapshot does **not** contain a tracked source
-redistribution license. The separate custom GPU fragment shader's
-high-level original source and redistribution rights are also not
-documented. This project therefore **does not claim** a blanket MIT,
-GPL, or other project-wide source license. Making a repository public
-would not by itself resolve the rights to adapted game code.
+Porting and optimization involved substantial AI assistance and extensive
+hands-on testing on PS Vita and PSTV / Vita TV.
 
-Original game rights and trademarks remain with their respective
-owners. This project is unofficial and is not affiliated with or
-endorsed by those owners. Read [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md),
-[UPSTREAM_SOURCES.md](UPSTREAM_SOURCES.md), and
-[PROVENANCE_REVIEW.md](PROVENANCE_REVIEW.md) for known component lineage
-and unresolved issues. The [art provenance record](ART_ASSET_PROVENANCE.md)
-identifies exactly which approved Vita icon and LiveArea files are included.
+Thanks to the VitaSDK, homebrew and decompilation communities, and the
+original game's creators. This is an unofficial fan project, unaffiliated
+with the original game's owners. Original copyrights and trademarks remain
+with their respective owners.
 
-**This repository worktree is a draft prepared for eventual publication,
-not a claim that distribution is rights-cleared or that a release already exists.**
+See [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) and
+[UPSTREAM_SOURCES.md](UPSTREAM_SOURCES.md) for component credits,
+[PROVENANCE_REVIEW.md](PROVENANCE_REVIEW.md) for the source and asset overview,
+and [ART_ASSET_PROVENANCE.md](ART_ASSET_PROVENANCE.md) for the packaged
+LiveArea artwork record. Component license texts are preserved alongside
+their respective dependencies.

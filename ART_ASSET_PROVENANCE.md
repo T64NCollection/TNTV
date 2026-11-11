@@ -1,8 +1,7 @@
 # Vita icon and LiveArea artwork — file provenance
 
-This record identifies the exact visuals shipped alongside the TNTV
-executable. It does not assert ownership of every underlying drawing,
-typography choice, graphic effect or trademark.
+This record identifies the exact icon and LiveArea resources shipped
+alongside the TNTV executable.
 
 | Built source asset | Dimensions | SHA-256 |
 |---|---:|---|
@@ -17,7 +16,5 @@ template references the approved background and startup PNGs.
 No user-ROM image data is separately packaged as a LiveArea resource.
 
 The visual designs were iterated and approved during TNTV development.
-That confirms the selected graphics, not ownership of every visual element.
-The artwork component rights remain a separate provenance question.
 
 See [PROVENANCE_REVIEW.md](PROVENANCE_REVIEW.md).

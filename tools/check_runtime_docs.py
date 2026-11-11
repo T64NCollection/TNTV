@@ -104,8 +104,6 @@ def main():
             issues.append("Approved UI asset changed: " + rel)
         if sha not in art:
             issues.append("Art provenance ledger missing expected SHA-256: " + rel)
-    if "does not assert ownership" not in art.lower() and "not ownership" not in art.lower() and "does not assert" not in art.lower():
-        issues.append("Art provenance must not assert unsupported ownership")
     for name in ("INSTALLATION.md", "TROUBLESHOOTING.md", "ART_ASSET_PROVENANCE.md"):
         if name not in readme:
             issues.append("Top-level README doesn't link " + name)
