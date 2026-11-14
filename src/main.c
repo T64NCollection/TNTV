@@ -464,6 +464,15 @@ static u8 g_tnt_3p_scene_buffer_ready[DISPLAY_BUFFER_COUNT];
 /* Opponent-only static-backdrop persistence, independently tracked for both
  * scanout buffers. Local multiplayer deliberately keeps its approved path. */
 static u8 g_tnt_opp60_scene_buffer_ready[DISPLAY_BUFFER_COUNT];
+/* Test219D: per-buffer dirty 32x16 pixel tile maps; the actual software
+ * draw footprints replace the fixed region assumptions of Test218D. */
+#define TNT_OPP60_TILE_X 32
+#define TNT_OPP60_TILE_Y 16
+#define TNT_OPP60_TILE_ROWS (DISPLAY_HEIGHT / TNT_OPP60_TILE_Y)
+static u32 g_tnt_opp60_dirty[DISPLAY_BUFFER_COUNT][TNT_OPP60_TILE_ROWS];
+static u8 g_tnt_opp60_dirty_full[DISPLAY_BUFFER_COUNT];
+static u8 g_tnt_opp60_tracking;
+
 /* Profiler-only visibility for whether latest 3P frame used full restore. */
 static u8 g_tnt_3p_restore_full_last;
 static uint32_t g_tnt_gameplay_base_scene[DISPLAY_STRIDE * DISPLAY_HEIGHT];
@@ -1076,6 +1085,28 @@ static void clear_screen(void *buffer, uint32_t color) {
     }
 }
 
+/* Record all software pixels touched during CPU Opponent play on this
+ * buffer. Old marks are used ONLY when that same buffer is reused. */
+static void tnt_vita_opp60_mark(
+    void *buffer, int x0, int y0, int x1, int y1
+) {
+    u32 bits;
+    int row, first, last;
+    if (!g_tnt_opp60_tracking || buffer != buffers[backBuffer].data)
+        return;
+    if (x0 < 0) x0 = 0;
+    if (y0 < 0) y0 = 0;
+    if (x1 > DISPLAY_WIDTH) x1 = DISPLAY_WIDTH;
+    if (y1 > DISPLAY_HEIGHT) y1 = DISPLAY_HEIGHT;
+    if (x1 <= x0 || y1 <= y0) return;
+    first = x0 / TNT_OPP60_TILE_X;
+    last = (x1 - 1) / TNT_OPP60_TILE_X;
+    bits = ((1U << (last - first + 1)) - 1U) << first;
+    for (row = y0 / TNT_OPP60_TILE_Y;
+         row <= (y1 - 1) / TNT_OPP60_TILE_Y; row++)
+        g_tnt_opp60_dirty[backBuffer][row] |= bits;
+}
+
 static void draw_rect(
     void *buffer,
     int x,
@@ -1085,6 +1116,7 @@ static void draw_rect(
     uint32_t color
 ) {
     uint32_t *pixels = (uint32_t *)buffer;
+    tnt_vita_opp60_mark(buffer, x, y, x + w, y + h);
 
     for (int py = y; py < y + h; py++) {
         if (py < 0 || py >= DISPLAY_HEIGHT)
@@ -1134,6 +1166,7 @@ static void draw_rect_alpha(
     if (y + h > DISPLAY_HEIGHT) h = DISPLAY_HEIGHT - y;
     if (w <= 0 || h <= 0)
         return;
+    tnt_vita_opp60_mark(buffer, x, y, x + w, y + h);
 
     for (py = y; py < y + h; py++) {
         int px;
@@ -1412,6 +1445,7 @@ static void draw_cube_mino_textured(
     );
     if (render_alpha == 0)
         return;
+    tnt_vita_opp60_mark(buffer, x, y, x + cell_w, y + cell_h);
 
     texture_dirty_before_update = (mino_ptr->unk1 & 1) != 0;
     TNT_Vita_MinoTextures_Update(mino_ptr, cube_ptr);
@@ -1833,6 +1867,7 @@ static void draw_piece_mino_textured_alpha(
         w = x1 - x0 + 1;
         h = y1 - y0 + 1;
         if (span > 0 && denom > 0 && w > 0 && h > 0 && w <= 64 && h <= 64) {
+            tnt_vita_opp60_mark(buffer, x0, y0, x1 + 1, y1 + 1);
             for (x = 0; x < w; x++) {
                 s32 dx = x0 + x;
                 s64 num;
@@ -1995,6 +2030,7 @@ static void draw_piece_mino_textured_alpha(
     if (min_y < 0) min_y = 0;
     if (max_x >= DISPLAY_WIDTH) max_x = DISPLAY_WIDTH - 1;
     if (max_y >= DISPLAY_HEIGHT) max_y = DISPLAY_HEIGHT - 1;
+    tnt_vita_opp60_mark(buffer, min_x, min_y, max_x + 1, max_y + 1);
 
     for (y = min_y; y <= max_y; y++) {
         for (x = min_x; x <= max_x; x++) {
@@ -3023,14 +3059,17 @@ static void tnt_vita_update_and_draw_fps(void *buffer) {
                      (unsigned)g_tnt_ai_prof_c_us,
                      (unsigned)g_tnt_ai_prof_b_us);
             tnt_vita_draw_debug_text(buffer, 14, 31, text);
-            snprintf(text, sizeof(text),
-                     "P0%u P1%u X%u V%u Amax%u",
+            /* Keep the diagnostics inside the left cybergrid sidebar.
+             * Test218D's overlong line spilled onto the moving backdrop. */
+            snprintf(text, sizeof(text), "P0%u P1%u",
                      (unsigned)g_tnt_ai_prof_p0_us,
-                     (unsigned)g_tnt_ai_prof_p1_us,
+                     (unsigned)g_tnt_ai_prof_p1_us);
+            tnt_vita_draw_debug_text(buffer, 14, 48, text);
+            snprintf(text, sizeof(text), "X%u V%u Amax%u",
                      (unsigned)g_tnt_ai_prof_x_us,
                      (unsigned)g_tnt_ai_prof_v_us,
                      (unsigned)g_tnt_ai_prof_amax_us);
-            tnt_vita_draw_debug_text(buffer, 14, 48, text);
+            tnt_vita_draw_debug_text(buffer, 14, 65, text);
         }
     }
 }
@@ -7840,6 +7879,19 @@ static void tnt_vita_draw_font_c_text(
     int dy0_map[12], dy1_map[12];
     int level, gy;
 
+    if (g_tnt_opp60_tracking && text && global_alpha != 0) {
+        int width = tnt_vita_font_c_text_width_native(text);
+        int x0 = board_x + tnt_floor_div_s64(
+            (s64)(native_x - 83) * cell, 11) - 1;
+        int x1 = board_x + tnt_floor_div_s64(
+            (s64)(native_x + width - 83) * cell + 10, 11) + 1;
+        int y0 = board_y + tnt_floor_div_s64(
+            (s64)(native_y - 36) * cell, 11) - 1;
+        int y1 = board_y + tnt_floor_div_s64(
+            (s64)(native_y + 12 - 36) * cell + 10, 11) + 1;
+        tnt_vita_opp60_mark(buffer, x0, y0, x1, y1);
+    }
+
     /* Font C is the long-form Wonder story font.  IA8 has only sixteen
      * intensity/alpha levels, and every glyph in one line shares the same 12
      * destination Y rows.  Cache both here so scrolling story text does not
@@ -10579,6 +10631,9 @@ static void tnt_vita_prepare_opponent_background(
      * display buffers before permitting partial restoration. */
     memset(g_tnt_opp60_scene_buffer_ready, 0,
            sizeof(g_tnt_opp60_scene_buffer_ready));
+    memset(g_tnt_opp60_dirty, 0, sizeof(g_tnt_opp60_dirty));
+    memset(g_tnt_opp60_dirty_full, 0, sizeof(g_tnt_opp60_dirty_full));
+    g_tnt_opp60_tracking = FALSE;
     u8 culture = screen < TNT_OPPONENT_2P_CULTURE_COUNT
         ? screen : (TNT_OPPONENT_2P_CULTURE_COUNT - 1);
     const TNTOpponent2PBackground *bg =
@@ -11486,39 +11541,41 @@ static void __attribute__((optimize("Os"))) tnt_vita_3p_scene_rect(
     }
 }
 
-/* Opponent60: use the original baked 2P culture scene as the background
- * for each buffer, then restore only regions altered by two Tetris objects.
- * Bounds are in the original N64 400x300 screen coordinate system and are
- * deliberately padded for sprite/hold tween/ghost and square glow fringes:
- *  - board 0: x57..157, board 1: x247..347, both y43..243;
- *  - per-culture held pieces: x31..38 / x364..369, y43..58;
- *  - all eight cultures have preview columns near x181 / x224, y49..160;
- *  - two line counters, names, and original time panel are in the center.
- * Endgame art and pause effects can cover other regions; those frames take
- * the unchanged full-screen fallback. No fixed 30 Hz throttle is introduced.
- *
- * Important: rectangles are restored PER BUFFER, never by copying the last
- * presented frame. The latter would accumulate alpha-blended piece ghosts. */
-static void tnt_vita_opp60_restore_scene(
-    void *buffer, int board_x, int board_y, int cell, u8 force_full
-) {
-    static const s16 rects[][4] = {
-        { 41,  31, 174, 257}, /* human board + ghost/settled squares */
-        {234,  31, 365, 257}, /* CPU board + ghost/settled squares */
-        { 13,  12,  80, 103}, /* human hold and swap motion */
-        {326,  12, 399, 103}, /* CPU hold and swap motion */
-        {157,  29, 246, 300}, /* previews, score, names, time */
-    };
-    u32 i;
-    if (force_full || !g_tnt_opp60_scene_buffer_ready[backBuffer]) {
+/* Test219D: source-coordinate regions left trails outside the wells.
+ * This version restores the exact previous draw footprint for each
+ * 960x544 buffer. Runs of adjacent 32x16 tiles copy in one span per row. */
+static void tnt_vita_opp60_restore_scene(void *buffer, u8 force_full) {
+    u32 row;
+    u32 *dst = (u32 *)buffer;
+    if (force_full || !g_tnt_opp60_scene_buffer_ready[backBuffer] ||
+        g_tnt_opp60_dirty_full[backBuffer]) {
         memcpy(buffer, g_tnt_static_scene, sizeof(g_tnt_static_scene));
         g_tnt_opp60_scene_buffer_ready[backBuffer] = TRUE;
-        return;
+    } else {
+        for (row = 0; row < TNT_OPP60_TILE_ROWS; row++) {
+            u32 bits = g_tnt_opp60_dirty[backBuffer][row];
+            while (bits) {
+                int left = __builtin_ctz(bits);
+                int right = left;
+                int y0 = (int)row * TNT_OPP60_TILE_Y;
+                int y;
+                while (right < DISPLAY_WIDTH / TNT_OPP60_TILE_X &&
+                       (bits & (1U << right)))
+                    right++;
+                u32 mask = ((1U << (right - left)) - 1U) << left;
+                int px = left * TNT_OPP60_TILE_X;
+                int w = (right - left) * TNT_OPP60_TILE_X;
+                for (y = y0; y < y0 + TNT_OPP60_TILE_Y; y++)
+                    memcpy(dst + (size_t)y * DISPLAY_STRIDE + px,
+                           g_tnt_static_scene + (size_t)y * DISPLAY_STRIDE + px,
+                           (size_t)w * sizeof(u32));
+                bits &= ~mask;
+            }
+        }
     }
-    for (i = 0; i < sizeof(rects) / sizeof(rects[0]); ++i)
-        tnt_vita_restore_native_rect_from_scene(
-            buffer, g_tnt_static_scene, board_x, board_y, cell,
-            rects[i][0], rects[i][1], rects[i][2], rects[i][3]);
+    memset(g_tnt_opp60_dirty[backBuffer], 0,
+           sizeof(g_tnt_opp60_dirty[backBuffer]));
+    g_tnt_opp60_dirty_full[backBuffer] = FALSE;
 }
 
 static void __attribute__((optimize("Os"))) tnt_vita_3p_restore_scene(
@@ -14061,6 +14118,10 @@ int main(int argc, char *argv[]) {
                  * gameplay was suspended; start with complete scenes. */
                 memset(g_tnt_opp60_scene_buffer_ready, 0,
                        sizeof(g_tnt_opp60_scene_buffer_ready));
+                memset(g_tnt_opp60_dirty, 0, sizeof(g_tnt_opp60_dirty));
+                memset(g_tnt_opp60_dirty_full, 0,
+                       sizeof(g_tnt_opp60_dirty_full));
+                g_tnt_opp60_tracking = FALSE;
                 if (opponent_active || multiplayer_active) {
                     Tetris_FUN_80054220_fourliner(&opponent_tetris, FALSE);
                     TNT_Vita_SetGameplayAlpha(
@@ -14445,11 +14506,15 @@ int main(int argc, char *argv[]) {
 
             if (ai_prof_on) ai_prof_t0 = sceKernelGetProcessTimeWide();
             if (opponent_active) {
-                tnt_vita_opp60_restore_scene(
-                    buffer, board_x, board_y, cell,
-                    (u8)(pause_was_active ||
-                         TNT_Vita_PauseIsActive(&pause_menu) ||
-                         !tetris.unk2 || !opponent_tetris.unk2));
+                u8 force_full = (u8)(
+                    pause_was_active ||
+                    TNT_Vita_PauseIsActive(&pause_menu) ||
+                    !tetris.unk2 || !opponent_tetris.unk2);
+                tnt_vita_opp60_restore_scene(buffer, force_full);
+                /* Pause/finish sprites render outside ordinary Tetris bounds.
+                 * Mark this buffer for full repair on its next reuse. */
+                if (force_full) g_tnt_opp60_dirty_full[backBuffer] = TRUE;
+                g_tnt_opp60_tracking = TRUE;
             } else {
                 /* Preserve unmodified, approved local 2P multiplayer. */
                 memcpy(buffer, g_tnt_static_scene, sizeof(g_tnt_static_scene));
@@ -14469,6 +14534,17 @@ int main(int argc, char *argv[]) {
                 buffer, &opponent_tetris, 1, cpu_x, opponent_y, opponent_cell,
                 board_x, board_y, cell);
             g_tnt_local_2p_fast_render = FALSE;
+            if (opponent_active) {
+                /* The SquareGlow renderer can paint beyond its board.
+                 * Full restore on next reuse whenever glows animate. */
+                Tetris *boards[2] = {&tetris, &opponent_tetris};
+                for (int pi = 0; pi < 2; pi++)
+                    for (int si = 0; si < 44; si++)
+                        if (boards[pi]->squares.arr[si].type != SQUARETYPE_NONE &&
+                            boards[pi]->squares.arr[si].glow.is_active)
+                            g_tnt_opp60_dirty_full[backBuffer] = TRUE;
+                g_tnt_opp60_tracking = FALSE;
+            }
             if (multiplayer_active && active_garbage_type == LANDFILLTYPE_HOTPOTATO)
                 tnt_vita_hotpotato_render(
                     buffer, &opponent_landfill, board_x, board_y, cell);
