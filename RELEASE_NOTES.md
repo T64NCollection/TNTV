@@ -1,3 +1,20 @@
+# TNTV v1.01 — Single Player Opponent 60 FPS update
+
+## What's new in v1.01
+
+- **All seven Single Player OPPONENT (vs. CPU) cultural backdrops** now render at approximately **60 FPS, up from 30 FPS in TNTV v1.0**. All seven were validated on physical PlayStation TV hardware; several were spot-checked on handheld Vita.
+- Corrected precise playfield-to-backdrop alignment so locked blocks meet the artwork borders, while preserving metallic blocks, rotations, line clears, holds, garbage attacks, pause/Progress, and winner/loser results.
+- Optimized individual locked-block texture rendering and framebuffer restoration without changing CPU difficulty or game speed.
+- The optional **L + R + Select FPS counter** remains; internal development timing diagnostics have been removed from the public build.
+
+## Updating from v1.0
+
+Install `TNTV_v1.01.vpk` over the existing TNTV installation using VitaShell. The app retains Title ID `NTET00001`; **do not delete `ux0:/data/TNTV/`**, which contains your user-supplied ROM, generated assets, and saved profiles/Wonders progress. No ROM rename or cache reset is required.
+
+The new 60 FPS claim applies to **Single Player Opponent**, not local 2–4 player multiplayer or cinematic sequences. This update does not change the other game modes.
+
+---
+
 # TNTV v1.0 — PS Vita & PlayStation TV
 
 ## Highlights

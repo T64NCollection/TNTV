@@ -45,7 +45,7 @@ TNTV may write these text files in `ux0:/data/TNTV/`:
 - `tntv_boot_trace.txt` — application startup trace
 - `tntv_hall212_timing.txt` — retained WONDERS Hall performance diagnostics in the tested build
 
-An internal diagnostic line may still include a historical test identifier. **The user-visible loading title is simply “TNTV LOADING”** in TNTV v1.0.
+An internal diagnostic line may still include a historical test identifier. **The user-visible loading title is simply “TNTV LOADING”** in TNTV v1.01.
 
 These logs can help local debugging. Before sharing a diagnostic excerpt anywhere, inspect it for personal paths or details. **Do not share the ROM, extracted caches, player saves, music files or hidden cheat values.**
 

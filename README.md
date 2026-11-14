@@ -2,17 +2,20 @@
 
 [![Platform: PS Vita / PSTV](https://img.shields.io/badge/Platform-PS%20Vita%20%7C%20PSTV-1863AE)](https://github.com/T64NCollection/TNTV)
 [![Players: 1–4](https://img.shields.io/badge/Players-1%E2%80%934-blueviolet)](https://github.com/T64NCollection/TNTV)
-[![Release: v1.0](https://img.shields.io/badge/Release-v1.0-brightgreen)](https://github.com/T64NCollection/TNTV/releases/tag/v1.0)
+[![Release: v1.01](https://img.shields.io/badge/Release-v1.01-brightgreen)](https://github.com/T64NCollection/TNTV/releases/tag/v1.01)
 
 **TNTV** is an unofficial native port of the Nintendo 64 classic *The New Tetris* for **PS Vita** and **PlayStation TV (PSTV / Vita TV)**, with an emphasis on the complete original experience—including its Wonders and four-player gameplay.
 
-**[Download TNTV v1.0](https://github.com/T64NCollection/TNTV/releases/tag/v1.0)**
+**[Download TNTV v1.01](https://github.com/T64NCollection/TNTV/releases/tag/v1.01)**
+
+**New in v1.01:** Every cultural backdrop in **Single Player → OPPONENT (vs. CPU)** now runs at approximately **60 FPS, up from 30 FPS in TNTV v1.0**. All seven were validated on actual PlayStation TV hardware, with additional handheld Vita gameplay checks. The update preserves corrected playfield alignment, metallic effects, line clears, Wonders/Progress access, and match results.
 
 ---
 
 ## ✨ Features
 
 - **🎮 All eight solo stages, optimized:** The seven cultural stages and Industrial/Finale gameplay have been tuned for **approximately 60 FPS** on tested Vita hardware, with extensive work on stage scenery, skies, effects and playfield rendering.
+- **🥊 Single Player Opponent at 60 FPS (v1.01):** All seven cultural CPU-versus-player backdrops have been raised from **30 FPS to approximately 60 FPS**, hardware-tested on PSTV/Vita TV and spot-checked on handheld Vita. Original gameplay timing, art, and effects are preserved.
 - **👥 Genuine four-player PSTV support:** Local **2-, 3- and 4-player** games tested with four physical **DualShock 3 / DualShock 4** controllers. Includes garbage attacks, targeting, Hot Potato and full match results.
 - **🏛️ The complete Wonders experience:** Seven cultures, construction milestones, animations, WONDERS Hall displays and the finale—with saved progression and unlocks.
 - **🎵 Original sound and presentation:** Soundtrack reconstructed locally from your ROM, original sound effects, native Vita rendering and custom cybergrid pillarboxes.
@@ -43,12 +46,12 @@ The same controller mappings apply to each player on PSTV. Multiplayer requires 
 
 ## 📦 Installation
 
-1. Download [the latest TNTV player package](https://github.com/T64NCollection/TNTV/releases/tag/v1.0), extract it and install the **VPK** using **VitaShell**.
+1. Download [TNTV v1.01](https://github.com/T64NCollection/TNTV/releases/tag/v1.01), extract the player ZIP and install **`TNTV_v1.01.vpk`** using **VitaShell**. You can also download the VPK directly.
 2. Put **your own compatible USA 1.0 Nintendo 64 ROM** of *The New Tetris* (**12,582,912 bytes / 12 MiB**) in `ux0:/data/TNTV/`.
 3. Leave the ROM's filename alone. TNTV accepts `.z64`, `.v64` and `.n64` files, including their common original names. For best results, keep just one ROM in the folder.
 4. Launch TNTV. The first run prepares graphics, scenes and music from your ROM; later launches reuse local caches.
 
-**No ROM or original game media is included.** Keep your ROM on the device after setup. To preserve names, scores and Wonder progress, **do not delete** `ux0:/data/TNTV/tntv_sram.bin`.
+**No ROM or original game media is included.** Keep your ROM on the device after setup. **Updating from v1.0 to v1.01 does not require moving your ROM, resetting caches, or starting a new save.** To preserve names, scores and Wonder progress, **do not delete** `ux0:/data/TNTV/tntv_sram.bin`.
 
 See [INSTALLATION.md](INSTALLATION.md) for a detailed walkthrough or [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if a ROM fails validation.
 
@@ -87,7 +90,7 @@ The shader helper reconstructs an ELF object from the bundled compiled program; 
 
 ## 📝 Notes & credits
 
-**Performance varies by scene and player count**; the ~60 FPS figure describes normal *solo stage gameplay*, not every game mode or cinematic. Some visuals, notably the Russian sky, are approximations.
+**Performance varies by scene and player count.** Normal solo gameplay and **Single Player Opponent (vs. CPU)** now run at approximately 60 FPS across their tested cultural backdrops. The seven Opponent backdrops were individually verified on Vita TV; handheld testing included several stages. **Local multiplayer (2–4 players) and cinematics have separate frame-rate characteristics** and are not claimed to run at 60 FPS. Some visuals, notably the Russian sky, are approximations.
 
 TNTV adapts the reconstruction by [chris-gilmore/tnt-splat](https://github.com/chris-gilmore/tnt-splat). Porting and optimization involved **substantial AI assistance** and extensive testing on PS Vita and PSTV. Thanks to the original developers and the VitaSDK and homebrew communities.
 
