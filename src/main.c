@@ -2510,7 +2510,7 @@ static void tnt_vita_draw_frontend_pillarbox(
 
 /* Tiny physical-pixel debug font used only in the bezel.  Each glyph is five
  * rows of three bits, scaled 2x, so the counter never touches the N64 image. */
-static const u8 g_tnt_debug_font3x5[28][5] = {
+static const u8 g_tnt_debug_font3x5[31][5] = {
     {7,5,5,5,7}, /* 0 */ {2,6,2,2,7}, /* 1 */
     {7,1,7,4,7}, /* 2 */ {7,1,7,1,7}, /* 3 */
     {5,5,7,1,1}, /* 4 */ {7,4,7,1,7}, /* 5 */
@@ -2524,7 +2524,9 @@ static const u8 g_tnt_debug_font3x5[28][5] = {
     {5,5,5,7,5}, /* W */ {5,5,5,5,7}, /* U */
     {7,5,5,5,7}, /* O */ {5,5,7,5,5}, /* H */
     {2,5,7,5,5}, /* A */ {5,5,2,5,5}, /* X */
-    {5,5,5,5,2}, /* V */ {5,7,7,5,5}  /* M */
+    {5,5,5,5,2}, /* V */ {5,7,7,5,5}, /* M */
+    {4,4,4,4,7}, /* L */ {5,7,7,7,5}, /* N */
+    {1,1,2,4,4}  /* / */
 };
 
 static int tnt_vita_debug_glyph_index(char c) {
@@ -2546,6 +2548,9 @@ static int tnt_vita_debug_glyph_index(char c) {
     if (c == 'X') return 25;
     if (c == 'V') return 26;
     if (c == 'M') return 27;
+    if (c == 'L') return 28;
+    if (c == 'N') return 29;
+    if (c == '/') return 30;
     return 15;
 }
 
