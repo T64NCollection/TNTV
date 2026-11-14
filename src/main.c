@@ -608,12 +608,16 @@ static u8 g_tnt_compact_playfield_active;
 #define TNT_2P_CUBE_CACHE_PLAYERS 2
 #define TNT_2P_CUBE_CACHE_CUBES   220
 #define TNT_2P_CUBE_CACHE_CELL    18
+#define TNT_OPP60_EXPANDED_CELL   19
 
 typedef struct {
     u8 valid;
-    u8 pixel_shape; /* 0: original 18x18 cache; 1: original 8x8 shading */
+    u8 pixel_shape; /* 0: legacy 18x18; 2: exact expanded 18/19px */
+    u8 expanded_w;
+    u8 expanded_h;
     Color color;
-    u32 tile[TNT_2P_CUBE_CACHE_CELL * TNT_2P_CUBE_CACHE_CELL];
+    /* 19x19 maximum; 18x18 original 2P code addresses first 324. */
+    u32 tile[TNT_OPP60_EXPANDED_CELL * TNT_OPP60_EXPANDED_CELL];
 } TNT2PCubeTileCache;
 
 static TNT2PCubeTileCache
@@ -1631,15 +1635,17 @@ static void draw_cube_mino_textured(
         }
     }
 
-    /* Exact Opponent source-space projection can produce 18x19,
-     * 19x18 or 19x19 settled blocks. The legacy 18x18 expanded-tile
-     * cache rejects them and falls back to 64 draw_rect calls PER CUBE,
-     * which costs precious frame time on medium stacks. Keep the
-     * already-existing per-cube 18x18 storage allocation, but use its
-     * first 64 colors as a shaded 8x8 source tile on these rare shapes.
-     * Only pixel expansion varies; original eight-texel source and
-     * per-cube color/dirty invalidation remain identical. Local MULTI
-     * never enters this path. */
+    /* Test223D: Exact Opponent source-space cells span 18 or 19 pixels.
+     * Previous Test220D shaded 64 texels once per block but then ran
+     * an expensive integer division PER destination pixel EVERY frame.
+     * Keep the exact source texel projection, but expand it into a
+     * 19x19 maximum per-Cube cached tile only when texture/color changes.
+     * Warm settled blocks use 18/19 contiguous row copies, eliminating
+     * all 300+ per-frame pixel divisions per occupied cell.
+     *
+     * The old approved 18x18 local MULTI path remains unchanged.
+     * Metallic morph, alpha transitions, texture-dirty and special
+     * sizes fall through to the original software rasterizer. */
     if (g_tnt_opp60_exact_board &&
         g_tnt_local_2p_fast_render &&
         cell_w >= 18 && cell_w <= 19 &&
@@ -1648,7 +1654,6 @@ static void draw_cube_mino_textured(
         blend == 0 && render_alpha == 0xFF) {
         TNT2PCubeTileCache *cache = NULL;
         uint32_t local_shaded[64];
-        const uint32_t *shaded = local_shaded;
         uint32_t *pixels = (uint32_t *)buffer;
         if (g_currentplayer < TNT_2P_CUBE_CACHE_PLAYERS &&
             g_mobileCubes_ptr && g_mobileCubes_ptr->cube_list &&
@@ -1659,41 +1664,76 @@ static void draw_cube_mino_textured(
             if (idx >= 0 && idx < TNT_2P_CUBE_CACHE_CUBES)
                 cache = &g_tnt_2p_cube_tile_cache[g_currentplayer][idx];
         }
-        if (cache && cache->valid && cache->pixel_shape == 1 &&
-            !texture_dirty_before_update &&
-            memcmp(&cache->color, &mino_ptr->unk4, sizeof(Color)) == 0) {
-            shaded = cache->tile;
-        } else {
-            int i;
-            for (i = 0; i < 64; i++) {
-                int texel = mino_ptr->unkB0[i];
+        if (cache && (!cache->valid || cache->pixel_shape != 2 ||
+                      cache->expanded_w != cell_w ||
+                      cache->expanded_h != cell_h ||
+                      texture_dirty_before_update ||
+                      memcmp(&cache->color,
+                             &mino_ptr->unk4, sizeof(Color)) != 0)) {
+            int si, iy, ix;
+            for (si = 0; si < 64; si++) {
+                int texel = mino_ptr->unkB0[si];
                 int red = prim_r + (((env_r - prim_r) * texel) >> 8);
                 int green = prim_g + (((env_g - prim_g) * texel) >> 8);
                 int blue = prim_b + (((env_b - prim_b) * texel) >> 8);
                 if (red < 0) red = 0; else if (red > 255) red = 255;
                 if (green < 0) green = 0; else if (green > 255) green = 255;
                 if (blue < 0) blue = 0; else if (blue > 255) blue = 255;
-                local_shaded[i] = COLOR(red, green, blue);
+                local_shaded[si] = COLOR(red, green, blue);
             }
-            if (cache) {
-                memcpy(cache->tile, local_shaded, sizeof(local_shaded));
-                cache->color = mino_ptr->unk4;
-                cache->pixel_shape = 1;
-                cache->valid = TRUE;
-                shaded = cache->tile;
+            for (iy = 0; iy < cell_h; iy++) {
+                int src_y = (((iy + 1) * 8 + cell_h - 1) / cell_h) - 1;
+                for (ix = 0; ix < cell_w; ix++) {
+                    int src_x = (((ix + 1) * 8 + cell_w - 1) / cell_w) - 1;
+                    cache->tile[iy * cell_w + ix] =
+                        local_shaded[src_y * 8 + src_x];
+                }
             }
+            cache->color = mino_ptr->unk4;
+            cache->pixel_shape = 2;
+            cache->expanded_w = (u8)cell_w;
+            cache->expanded_h = (u8)cell_h;
+            cache->valid = TRUE;
+        }
+        if (cache && cache->valid) {
+            /* Whole-row copies when the cell is completely on-screen;
+             * handle clipped rows/columns by copying the visible span. */
+            for (ty = 0; ty < cell_h; ty++) {
+                int py = y + ty;
+                int sx = x, src_x = 0, width = cell_w;
+                if (py < 0 || py >= DISPLAY_HEIGHT) continue;
+                if (sx < 0) { src_x = -sx; width -= src_x; sx = 0; }
+                if (sx + width > DISPLAY_WIDTH)
+                    width = DISPLAY_WIDTH - sx;
+                if (width > 0)
+                    memcpy(pixels + (size_t)py * DISPLAY_STRIDE + sx,
+                           cache->tile + (size_t)ty * cell_w + src_x,
+                           (size_t)width * sizeof(uint32_t));
+            }
+            return;
+        }
+        /* Rare uncacheable/mobile cube: preserve the original Test220D
+         * identical shading and coverage using a local 8x8 sample table. */
+        for (int si = 0; si < 64; si++) {
+            int texel = mino_ptr->unkB0[si];
+            int red = prim_r + (((env_r - prim_r) * texel) >> 8);
+            int green = prim_g + (((env_g - prim_g) * texel) >> 8);
+            int blue = prim_b + (((env_b - prim_b) * texel) >> 8);
+            if (red < 0) red = 0; else if (red > 255) red = 255;
+            if (green < 0) green = 0; else if (green > 255) green = 255;
+            if (blue < 0) blue = 0; else if (blue > 255) blue = 255;
+            local_shaded[si] = COLOR(red, green, blue);
         }
         for (ty = 0; ty < cell_h; ty++) {
             int py = y + ty;
-            int tex_y = (((ty + 1) * 8 + cell_h - 1) / cell_h) - 1;
-            uint32_t *destrow;
+            int src_y = (((ty + 1) * 8 + cell_h - 1) / cell_h) - 1;
             if (py < 0 || py >= DISPLAY_HEIGHT) continue;
-            destrow = pixels + (size_t)py * DISPLAY_STRIDE;
             for (tx = 0; tx < cell_w; tx++) {
                 int px = x + tx;
-                int tex_x = (((tx + 1) * 8 + cell_w - 1) / cell_w) - 1;
+                int src_x = (((tx + 1) * 8 + cell_w - 1) / cell_w) - 1;
                 if (px >= 0 && px < DISPLAY_WIDTH)
-                    destrow[px] = shaded[tex_y * 8 + tex_x];
+                    pixels[(size_t)py * DISPLAY_STRIDE + px] =
+                        local_shaded[src_y * 8 + src_x];
             }
         }
         return;
