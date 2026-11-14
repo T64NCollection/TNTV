@@ -3228,45 +3228,7 @@ static void tnt_vita_update_and_draw_fps(void *buffer) {
                  (unsigned)(g_tnt_fps_x10 / 10U),
                  (unsigned)(g_tnt_fps_x10 % 10U));
         tnt_vita_draw_debug_text(buffer, 14, 14, text);
-        /* PRIVATE Opponent60 test instrumentation, microseconds per frame.
-         * Enable only with L+R+SELECT. No game logic or clock changes.
-         * H=human update, A=AI, C=CPU update, B=scene/HUD,
-         * P0/P1=board draw, X=overlay, V=present/VBlank. */
-        if (g_tnt_ai_profile_active && g_tnt_2p_prof_mode == 79) {
-            /* Five narrow lines: the old combined debug strings ran
-             * outside the left pillarbox and across the 2P backdrop. */
-            snprintf(text, sizeof(text), "H%u A%u",
-                     (unsigned)g_tnt_ai_prof_h_us,
-                     (unsigned)g_tnt_ai_prof_a_us);
-            tnt_vita_draw_debug_text(buffer, 14, 31, text);
-            snprintf(text, sizeof(text), "C%u B%u",
-                     (unsigned)g_tnt_ai_prof_c_us,
-                     (unsigned)g_tnt_ai_prof_b_us);
-            tnt_vita_draw_debug_text(buffer, 14, 48, text);
-            snprintf(text, sizeof(text), "P0%u P1%u",
-                     (unsigned)g_tnt_ai_prof_p0_us,
-                     (unsigned)g_tnt_ai_prof_p1_us);
-            tnt_vita_draw_debug_text(buffer, 14, 65, text);
-            snprintf(text, sizeof(text), "X%u V%u",
-                     (unsigned)g_tnt_ai_prof_x_us,
-                     (unsigned)g_tnt_ai_prof_v_us);
-            tnt_vita_draw_debug_text(buffer, 14, 82, text);
-            snprintf(text, sizeof(text), "M%u",
-                     (unsigned)g_tnt_ai_prof_amax_us);
-            tnt_vita_draw_debug_text(buffer, 14, 99, text);
-            snprintf(text, sizeof(text), "L%u/%u",
-                     (unsigned)g_tnt_opp60_locked_us[0],
-                     (unsigned)g_tnt_opp60_locked_us[1]);
-            tnt_vita_draw_debug_text(buffer, 14, 116, text);
-            snprintf(text, sizeof(text), "N%u/%u",
-                     (unsigned)g_tnt_opp60_preview_us[0],
-                     (unsigned)g_tnt_opp60_preview_us[1]);
-            tnt_vita_draw_debug_text(buffer, 14, 133, text);
-            snprintf(text, sizeof(text), "R%u/%u",
-                     (unsigned)g_tnt_opp60_other_us[0],
-                     (unsigned)g_tnt_opp60_other_us[1]);
-            tnt_vita_draw_debug_text(buffer, 14, 150, text);
-        }
+
     }
 }
 
@@ -10948,8 +10910,9 @@ static void tnt_vita_render_tetris_player(
 ) {
     u64 locked_start = g_tnt_3p_prof_active
         ? sceKernelGetProcessTimeWide() : 0;
-    u8 prof222 = (u8)(g_tnt_fps_counter_enabled &&
-                       g_tnt_opp60_tracking && player_index < 2);
+    /* RC: turn off private per-piece microtimers; keep renderer tracking.
+     * Do NOT disable g_tnt_opp60_tracking (required for accurate pixels). */
+    u8 prof222 = FALSE;
     u64 t222 = prof222 ? sceKernelGetProcessTimeWide() : 0;
     TNT_Vita_TetrisSetGlobalPointers(tetris_ptr, player_index);
     g_tnt_compact_playfield_active = (u8)(g_playercount >= 3);
@@ -14543,7 +14506,9 @@ int main(int argc, char *argv[]) {
             u8 active_count;
             u8 pause_was_active;
             s32 opponent_pause_action;
-            u8 ai_prof_on = (u8)(opponent_active && g_tnt_fps_counter_enabled);
+            /* RC: the public FPS toggle must not enable dev timing probes.
+             * The general FPS calculation is independent of this flag. */
+            u8 ai_prof_on = FALSE;
             u32 ai_prof_h=0, ai_prof_a=0, ai_prof_c=0;
             u32 ai_prof_b=0, ai_prof_p0=0, ai_prof_p1=0, ai_prof_x=0, ai_prof_v=0;
             u64 ai_prof_t0;
