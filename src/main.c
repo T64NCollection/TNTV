@@ -478,6 +478,11 @@ static u8 g_tnt_opp60_tracking;
 static u8 g_tnt_opp60_exact_board;
 static u8 g_tnt_opp60_phase_x;
 static u8 g_tnt_opp60_phase_y;
+/* Test222D private profiler: 2P boards' locked, preview and other
+ * source rasterizer contributions. Only sampled with FPS HUD enabled. */
+static u32 g_tnt_opp60_locked_us[2];
+static u32 g_tnt_opp60_preview_us[2];
+static u32 g_tnt_opp60_other_us[2];
 
 /* Profiler-only visibility for whether latest 3P frame used full restore. */
 static u8 g_tnt_3p_restore_full_last;
@@ -1979,8 +1984,15 @@ static void draw_piece_mino_textured_alpha(
                         (g_tnt_opp60_exact_board ?
                             (s64)2 * g_tnt_opp60_phase_x * 256 : 0);
                 }
-                x_tex[x] = (num >= 0 && num < denom)
-                    ? (s8)((num * 8) / denom) : (s8)-1;
+                if (num >= 0 && num < denom) {
+                    if (g_tnt_opp60_exact_board &&
+                        denom <= 0x0FFFFFFFLL)
+                        x_tex[x] = (s8)(((u32)num * 8U) / (u32)denom);
+                    else
+                        x_tex[x] = (s8)((num * 8) / denom);
+                } else {
+                    x_tex[x] = (s8)-1;
+                }
             }
             for (y = 0; y < h; y++) {
                 s32 dy = y0 + y;
@@ -1996,8 +2008,15 @@ static void draw_piece_mino_textured_alpha(
                         (g_tnt_opp60_exact_board ?
                             (s64)2 * g_tnt_opp60_phase_y * 256 : 0);
                 }
-                y_tex[y] = (num >= 0 && num < denom)
-                    ? (s8)((num * 8) / denom) : (s8)-1;
+                if (num >= 0 && num < denom) {
+                    if (g_tnt_opp60_exact_board &&
+                        denom <= 0x0FFFFFFFLL)
+                        y_tex[y] = (s8)(((u32)num * 8U) / (u32)denom);
+                    else
+                        y_tex[y] = (s8)((num * 8) / denom);
+                } else {
+                    y_tex[y] = (s8)-1;
+                }
             }
 
             /* Shade the 64 source texels once. The old fast path repeated
@@ -3190,6 +3209,18 @@ static void tnt_vita_update_and_draw_fps(void *buffer) {
             snprintf(text, sizeof(text), "M%u",
                      (unsigned)g_tnt_ai_prof_amax_us);
             tnt_vita_draw_debug_text(buffer, 14, 99, text);
+            snprintf(text, sizeof(text), "L%u/%u",
+                     (unsigned)g_tnt_opp60_locked_us[0],
+                     (unsigned)g_tnt_opp60_locked_us[1]);
+            tnt_vita_draw_debug_text(buffer, 14, 116, text);
+            snprintf(text, sizeof(text), "N%u/%u",
+                     (unsigned)g_tnt_opp60_preview_us[0],
+                     (unsigned)g_tnt_opp60_preview_us[1]);
+            tnt_vita_draw_debug_text(buffer, 14, 133, text);
+            snprintf(text, sizeof(text), "R%u/%u",
+                     (unsigned)g_tnt_opp60_other_us[0],
+                     (unsigned)g_tnt_opp60_other_us[1]);
+            tnt_vita_draw_debug_text(buffer, 14, 150, text);
         }
     }
 }
@@ -10872,6 +10903,9 @@ static void tnt_vita_render_tetris_player(
 ) {
     u64 locked_start = g_tnt_3p_prof_active
         ? sceKernelGetProcessTimeWide() : 0;
+    u8 prof222 = (u8)(g_tnt_fps_counter_enabled &&
+                       g_tnt_opp60_tracking && player_index < 2);
+    u64 t222 = prof222 ? sceKernelGetProcessTimeWide() : 0;
     TNT_Vita_TetrisSetGlobalPointers(tetris_ptr, player_index);
     g_tnt_compact_playfield_active = (u8)(g_playercount >= 3);
     g_tnt_opp60_exact_board =
@@ -10945,6 +10979,11 @@ static void tnt_vita_render_tetris_player(
         g_tnt_3p_prof_locked_frame[player_index] =
             (u32)(sceKernelGetProcessTimeWide() - locked_start);
 
+    if (prof222) {
+        g_tnt_opp60_locked_us[player_index] =
+            (u32)(sceKernelGetProcessTimeWide()-t222);
+        t222 = sceKernelGetProcessTimeWide();
+    }
     if (!tnt_vita_3p_ultra_hp_line_tile_enabled(player_index)) {
         char line_text[16];
         snprintf(line_text, sizeof(line_text), "%u",
@@ -10956,6 +10995,11 @@ static void tnt_vita_render_tetris_player(
             line_text, 0xFF, 0xFF, 0xFF, 0xFF);
     }
 
+    /* This row-blend scratch path is already used in v1.0 Marathon.
+     * Enable it for Opponent preview minos ONLY; this replaces repeated
+     * uncached per-pixel CDRAM read/writes with one row read and write. */
+    u8 saved_next_scratch = g_tnt113_next_scratch_active;
+    if (g_tnt_opp60_exact_board) g_tnt113_next_scratch_active = TRUE;
     for (int ni = 0; ni < 4; ni++) {
         NextPiece *next_piece = &tetris_ptr->board.nextPieces.buf[ni];
         NextPieceShadow *shadow = &next_piece->shadow;
@@ -11005,6 +11049,13 @@ static void tnt_vita_render_tetris_player(
                 mp, next_piece->mino_scale, piece, (u8)mi,
                 tnt_mino_alpha(&piece->mino_arr[mi], (u8)next_alpha));
         }
+    }
+
+    g_tnt113_next_scratch_active = saved_next_scratch;
+    if (prof222) {
+        g_tnt_opp60_preview_us[player_index] =
+            (u32)(sceKernelGetProcessTimeWide()-t222);
+        t222 = sceKernelGetProcessTimeWide();
     }
 
     if (g_playercount >= 2) {
@@ -11145,6 +11196,9 @@ static void tnt_vita_render_tetris_player(
         buffer, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_STRIDE,
         screen_board_x, screen_board_y, screen_cell,
         &tetris_ptr->frameAct.unk10);
+    if (prof222)
+        g_tnt_opp60_other_us[player_index] =
+            (u32)(sceKernelGetProcessTimeWide()-t222);
     g_tnt_opp60_exact_board = FALSE;
     g_tnt_compact_playfield_active = FALSE;
 }
