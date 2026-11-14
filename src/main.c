@@ -472,6 +472,12 @@ static u8 g_tnt_opp60_scene_buffer_ready[DISPLAY_BUFFER_COUNT];
 static u32 g_tnt_opp60_dirty[DISPLAY_BUFFER_COUNT][TNT_OPP60_TILE_ROWS];
 static u8 g_tnt_opp60_dirty_full[DISPLAY_BUFFER_COUNT];
 static u8 g_tnt_opp60_tracking;
+/* Opponent's two 10px N64 cells map to 200/11 Vita pixels, NOT 18.
+ * Independent phases preserve the fractional 400x300 scene offset
+ * lost when the image origin is first projected to integer pixels. */
+static u8 g_tnt_opp60_exact_board;
+static u8 g_tnt_opp60_phase_x;
+static u8 g_tnt_opp60_phase_y;
 
 /* Profiler-only visibility for whether latest 3P frame used full restore. */
 static u8 g_tnt_3p_restore_full_last;
@@ -600,6 +606,7 @@ static u8 g_tnt_compact_playfield_active;
 
 typedef struct {
     u8 valid;
+    u8 pixel_shape; /* 0: original 18x18 cache; 1: original 8x8 shading */
     Color color;
     u32 tile[TNT_2P_CUBE_CACHE_CELL * TNT_2P_CUBE_CACHE_CELL];
 } TNT2PCubeTileCache;
@@ -1510,6 +1517,7 @@ static void draw_cube_mino_textured(
         }
 
         if (blend == 0 && cache != NULL && cache->valid &&
+            cache->pixel_shape == 0 &&
             !texture_dirty_before_update &&
             memcmp(&cache->color, &mino_ptr->unk4, sizeof(Color)) == 0) {
             cache_hit = TRUE;
@@ -1538,6 +1546,7 @@ static void draw_cube_mino_textured(
                         shaded[sy + texel_for_pixel[tx]];
             }
             cache->color = mino_ptr->unk4;
+            cache->pixel_shape = 0;
             cache->valid = TRUE;
             cache_hit = TRUE;
         }
@@ -1615,6 +1624,74 @@ static void draw_cube_mino_textured(
             }
             return;
         }
+    }
+
+    /* Exact Opponent source-space projection can produce 18x19,
+     * 19x18 or 19x19 settled blocks. The legacy 18x18 expanded-tile
+     * cache rejects them and falls back to 64 draw_rect calls PER CUBE,
+     * which costs precious frame time on medium stacks. Keep the
+     * already-existing per-cube 18x18 storage allocation, but use its
+     * first 64 colors as a shaded 8x8 source tile on these rare shapes.
+     * Only pixel expansion varies; original eight-texel source and
+     * per-cube color/dirty invalidation remain identical. Local MULTI
+     * never enters this path. */
+    if (g_tnt_opp60_exact_board &&
+        g_tnt_local_2p_fast_render &&
+        cell_w >= 18 && cell_w <= 19 &&
+        cell_h >= 18 && cell_h <= 19 &&
+        (cell_w == 19 || cell_h == 19) &&
+        blend == 0 && render_alpha == 0xFF) {
+        TNT2PCubeTileCache *cache = NULL;
+        uint32_t local_shaded[64];
+        const uint32_t *shaded = local_shaded;
+        uint32_t *pixels = (uint32_t *)buffer;
+        if (g_currentplayer < TNT_2P_CUBE_CACHE_PLAYERS &&
+            g_mobileCubes_ptr && g_mobileCubes_ptr->cube_list &&
+            cube_ptr >= g_mobileCubes_ptr->cube_list &&
+            cube_ptr < g_mobileCubes_ptr->cube_list +
+                       g_mobileCubes_ptr->max_allowed) {
+            int idx = (int)(cube_ptr - g_mobileCubes_ptr->cube_list);
+            if (idx >= 0 && idx < TNT_2P_CUBE_CACHE_CUBES)
+                cache = &g_tnt_2p_cube_tile_cache[g_currentplayer][idx];
+        }
+        if (cache && cache->valid && cache->pixel_shape == 1 &&
+            !texture_dirty_before_update &&
+            memcmp(&cache->color, &mino_ptr->unk4, sizeof(Color)) == 0) {
+            shaded = cache->tile;
+        } else {
+            int i;
+            for (i = 0; i < 64; i++) {
+                int texel = mino_ptr->unkB0[i];
+                int red = prim_r + (((env_r - prim_r) * texel) >> 8);
+                int green = prim_g + (((env_g - prim_g) * texel) >> 8);
+                int blue = prim_b + (((env_b - prim_b) * texel) >> 8);
+                if (red < 0) red = 0; else if (red > 255) red = 255;
+                if (green < 0) green = 0; else if (green > 255) green = 255;
+                if (blue < 0) blue = 0; else if (blue > 255) blue = 255;
+                local_shaded[i] = COLOR(red, green, blue);
+            }
+            if (cache) {
+                memcpy(cache->tile, local_shaded, sizeof(local_shaded));
+                cache->color = mino_ptr->unk4;
+                cache->pixel_shape = 1;
+                cache->valid = TRUE;
+                shaded = cache->tile;
+            }
+        }
+        for (ty = 0; ty < cell_h; ty++) {
+            int py = y + ty;
+            int tex_y = (((ty + 1) * 8 + cell_h - 1) / cell_h) - 1;
+            uint32_t *destrow;
+            if (py < 0 || py >= DISPLAY_HEIGHT) continue;
+            destrow = pixels + (size_t)py * DISPLAY_STRIDE;
+            for (tx = 0; tx < cell_w; tx++) {
+                int px = x + tx;
+                int tex_x = (((tx + 1) * 8 + cell_w - 1) / cell_w) - 1;
+                if (px >= 0 && px < DISPLAY_WIDTH)
+                    destrow[px] = shaded[tex_y * 8 + tex_x];
+            }
+        }
+        return;
     }
 
     for (ty = 0; ty < 8; ty++) {
@@ -1703,6 +1780,24 @@ static int tnt_fixed_edge_to_pixel(s32 value, int origin, int cell) {
         pixels = -(((-scaled) + divisor - 1) / divisor);
 
     return origin + (int)pixels;
+}
+
+/* Test220D: exact shared 400x300 background basis for Opponent pieces.
+ * x,y output from the existing 2P projected origins. Match background's
+ * floor((source_position - 83/36) * 20/11) including fractional remainder.
+ * The old integer 18px/cell places row20 FOUR pixels above its border. */
+static int tnt_vita_opp60_edge(
+    s32 value, int origin, int cell, u8 is_y
+) {
+    s64 scaled, div;
+    if (!g_tnt_opp60_exact_board)
+        return tnt_fixed_edge_to_pixel(value, origin, cell);
+    scaled = (s64)value * 10 * TNT_PRESENT_CELL +
+        (s64)(is_y ? g_tnt_opp60_phase_y :
+                     g_tnt_opp60_phase_x) * 256;
+    div = (s64)256 * 11;
+    return origin + (int)(scaled >= 0
+        ? (scaled / div) : -(((-scaled) + div - 1) / div));
 }
 
 /* Multiplayer holds are authored in playfield-local Minos coordinates.
@@ -1844,17 +1939,19 @@ static void draw_piece_mino_textured_alpha(
         s32 fy1 = center.y + half;
         u8 source_hold = g_tnt_2p_hold_source_space;
         int x0 = (source_hold ? tnt_vita_compact_hold_edge_pixel(fx0, FALSE)
-                              : tnt_fixed_edge_to_pixel(fx0, board_x, cell)) - 1;
+                              : tnt_vita_opp60_edge(fx0, board_x, cell, FALSE)) - 1;
         int y0 = (source_hold ? tnt_vita_compact_hold_edge_pixel(fy0, TRUE)
-                              : tnt_fixed_edge_to_pixel(fy0, board_y, cell)) - 1;
+                              : tnt_vita_opp60_edge(fy0, board_y, cell, TRUE)) - 1;
         int x1 = (source_hold ? tnt_vita_compact_hold_edge_pixel(fx1, FALSE)
-                              : tnt_fixed_edge_to_pixel(fx1, board_x, cell)) + 1;
+                              : tnt_vita_opp60_edge(fx1, board_x, cell, FALSE)) + 1;
         int y1 = (source_hold ? tnt_vita_compact_hold_edge_pixel(fy1, TRUE)
-                              : tnt_fixed_edge_to_pixel(fy1, board_y, cell)) + 1;
+                              : tnt_vita_opp60_edge(fy1, board_y, cell, TRUE)) + 1;
         s64 scale_num = source_hold
             ? (s64)g_tnt_hold_source_unit_size * g_tnt_2p_hold_screen_cell
-            : (g_tnt_compact_playfield_active ? (8 * TNT_PRESENT_CELL) : cell);
-        s64 scale_den = (source_hold || g_tnt_compact_playfield_active) ? 11 : 1;
+            : (g_tnt_compact_playfield_active ? (8 * TNT_PRESENT_CELL) :
+                (g_tnt_opp60_exact_board ? (10 * TNT_PRESENT_CELL) : cell));
+        s64 scale_den = (source_hold || g_tnt_compact_playfield_active ||
+                         g_tnt_opp60_exact_board) ? 11 : 1;
         s64 denom = (s64)2 * span * scale_num;
         int w, h;
         s8 x_tex[64], y_tex[64];
@@ -1878,7 +1975,9 @@ static void draw_piece_mino_textured_alpha(
                         (s64)2 * anchor * g_tnt_2p_hold_screen_cell;
                 } else {
                     num = ((s64)(2 * (dx - board_x) + 1) * 256 * scale_den) -
-                        (s64)2 * fx0 * scale_num;
+                        (s64)2 * fx0 * scale_num -
+                        (g_tnt_opp60_exact_board ?
+                            (s64)2 * g_tnt_opp60_phase_x * 256 : 0);
                 }
                 x_tex[x] = (num >= 0 && num < denom)
                     ? (s8)((num * 8) / denom) : (s8)-1;
@@ -1893,7 +1992,9 @@ static void draw_piece_mino_textured_alpha(
                         (s64)2 * anchor * g_tnt_2p_hold_screen_cell;
                 } else {
                     num = ((s64)(2 * (dy - board_y) + 1) * 256 * scale_den) -
-                        (s64)2 * fy0 * scale_num;
+                        (s64)2 * fy0 * scale_num -
+                        (g_tnt_opp60_exact_board ?
+                            (s64)2 * g_tnt_opp60_phase_y * 256 : 0);
                 }
                 y_tex[y] = (num >= 0 && num < denom)
                     ? (s8)((num * 8) / denom) : (s8)-1;
@@ -1997,8 +2098,15 @@ static void draw_piece_mino_textured_alpha(
         } else {
             const double pixels_per_cell = g_tnt_compact_playfield_active
                 ? ((double)(8 * TNT_PRESENT_CELL) / 11.0) : (double)cell;
-            qx[i] = board_x + ((double)fx * pixels_per_cell) / 256.0;
-            qy[i] = board_y + ((double)fy * pixels_per_cell) / 256.0;
+            if (g_tnt_opp60_exact_board) {
+                qx[i] = board_x + (double)g_tnt_opp60_phase_x / 11.0 +
+                    ((double)fx * (10 * TNT_PRESENT_CELL)) / (11.0 * 256.0);
+                qy[i] = board_y + (double)g_tnt_opp60_phase_y / 11.0 +
+                    ((double)fy * (10 * TNT_PRESENT_CELL)) / (11.0 * 256.0);
+            } else {
+                qx[i] = board_x + ((double)fx * pixels_per_cell) / 256.0;
+                qy[i] = board_y + ((double)fy * pixels_per_cell) / 256.0;
+            }
         }
     }
 
@@ -2383,7 +2491,7 @@ static void tnt_vita_draw_frontend_pillarbox(
 
 /* Tiny physical-pixel debug font used only in the bezel.  Each glyph is five
  * rows of three bits, scaled 2x, so the counter never touches the N64 image. */
-static const u8 g_tnt_debug_font3x5[22][5] = {
+static const u8 g_tnt_debug_font3x5[28][5] = {
     {7,5,5,5,7}, /* 0 */ {2,6,2,2,7}, /* 1 */
     {7,1,7,4,7}, /* 2 */ {7,1,7,1,7}, /* 3 */
     {5,5,7,1,1}, /* 4 */ {7,4,7,1,7}, /* 5 */
@@ -2394,7 +2502,10 @@ static const u8 g_tnt_debug_font3x5[22][5] = {
     {0,0,7,0,0}, /* - */ {0,0,0,0,0}, /* space */
     {6,5,6,5,6}, /* B */ {7,4,4,4,7}, /* C */
     {7,4,5,5,7}, /* G */ {6,5,6,5,5}, /* R */
-    {5,5,5,7,5}, /* W */ {5,5,5,5,7}  /* U */
+    {5,5,5,7,5}, /* W */ {5,5,5,5,7}, /* U */
+    {7,5,5,5,7}, /* O */ {5,5,7,5,5}, /* H */
+    {2,5,7,5,5}, /* A */ {5,5,2,5,5}, /* X */
+    {5,5,5,5,2}, /* V */ {5,7,7,5,5}  /* M */
 };
 
 static int tnt_vita_debug_glyph_index(char c) {
@@ -2410,6 +2521,12 @@ static int tnt_vita_debug_glyph_index(char c) {
     if (c == 'R') return 19;
     if (c == 'W') return 20;
     if (c == 'U') return 21;
+    if (c == 'O') return 22;
+    if (c == 'H') return 23;
+    if (c == 'A') return 24;
+    if (c == 'X') return 25;
+    if (c == 'V') return 26;
+    if (c == 'M') return 27;
     return 15;
 }
 
@@ -3052,24 +3169,27 @@ static void tnt_vita_update_and_draw_fps(void *buffer) {
          * H=human update, A=AI, C=CPU update, B=scene/HUD,
          * P0/P1=board draw, X=overlay, V=present/VBlank. */
         if (g_tnt_ai_profile_active && g_tnt_2p_prof_mode == 79) {
-            snprintf(text, sizeof(text),
-                     "O H%u A%u C%u B%u",
+            /* Five narrow lines: the old combined debug strings ran
+             * outside the left pillarbox and across the 2P backdrop. */
+            snprintf(text, sizeof(text), "H%u A%u",
                      (unsigned)g_tnt_ai_prof_h_us,
-                     (unsigned)g_tnt_ai_prof_a_us,
+                     (unsigned)g_tnt_ai_prof_a_us);
+            tnt_vita_draw_debug_text(buffer, 14, 31, text);
+            snprintf(text, sizeof(text), "C%u B%u",
                      (unsigned)g_tnt_ai_prof_c_us,
                      (unsigned)g_tnt_ai_prof_b_us);
-            tnt_vita_draw_debug_text(buffer, 14, 31, text);
-            /* Keep the diagnostics inside the left cybergrid sidebar.
-             * Test218D's overlong line spilled onto the moving backdrop. */
+            tnt_vita_draw_debug_text(buffer, 14, 48, text);
             snprintf(text, sizeof(text), "P0%u P1%u",
                      (unsigned)g_tnt_ai_prof_p0_us,
                      (unsigned)g_tnt_ai_prof_p1_us);
-            tnt_vita_draw_debug_text(buffer, 14, 48, text);
-            snprintf(text, sizeof(text), "X%u V%u Amax%u",
-                     (unsigned)g_tnt_ai_prof_x_us,
-                     (unsigned)g_tnt_ai_prof_v_us,
-                     (unsigned)g_tnt_ai_prof_amax_us);
             tnt_vita_draw_debug_text(buffer, 14, 65, text);
+            snprintf(text, sizeof(text), "X%u V%u",
+                     (unsigned)g_tnt_ai_prof_x_us,
+                     (unsigned)g_tnt_ai_prof_v_us);
+            tnt_vita_draw_debug_text(buffer, 14, 82, text);
+            snprintf(text, sizeof(text), "M%u",
+                     (unsigned)g_tnt_ai_prof_amax_us);
+            tnt_vita_draw_debug_text(buffer, 14, 99, text);
         }
     }
 }
@@ -10754,6 +10874,16 @@ static void tnt_vita_render_tetris_player(
         ? sceKernelGetProcessTimeWide() : 0;
     TNT_Vita_TetrisSetGlobalPointers(tetris_ptr, player_index);
     g_tnt_compact_playfield_active = (u8)(g_playercount >= 3);
+    g_tnt_opp60_exact_board =
+        (u8)(g_tnt_opp60_tracking && g_playercount == 2);
+    if (g_tnt_opp60_exact_board) {
+        int phase_x = (tetris_ptr->boardInfo.location.x - 83) *
+                      TNT_PRESENT_CELL;
+        int phase_y = (tetris_ptr->boardInfo.location.y - 36) *
+                      TNT_PRESENT_CELL;
+        g_tnt_opp60_phase_x = (u8)((phase_x % 11 + 11) % 11);
+        g_tnt_opp60_phase_y = (u8)((phase_y % 11 + 11) % 11);
+    }
 
     for (int by = 0; by < 20; by++) {
         for (int bx = 0; bx < 10; bx++) {
@@ -10770,28 +10900,20 @@ static void tnt_vita_render_tetris_player(
                     locked_tnt_color = &board_cell->cubeInfo.cube_ptr->mino.unk4;
                     locked_x_fixed = board_cell->cubeInfo.cube_ptr->unk2.unk6.p.x;
                     locked_y_fixed = board_cell->cubeInfo.cube_ptr->unk2.unk6.p.y;
-                    int px0 = tnt_fixed_edge_to_pixel(
-                        locked_x_fixed, playfield_x, playfield_cell);
-                    int py0 = tnt_fixed_edge_to_pixel(
-                        locked_y_fixed, playfield_y, playfield_cell);
-                    int cw = tnt_fixed_edge_to_pixel(
-                        locked_x_fixed + 0x100, playfield_x, playfield_cell) - px0;
-                    int ch = tnt_fixed_edge_to_pixel(
-                        locked_y_fixed + 0x100, playfield_y, playfield_cell) - py0;
+                    int px0 = tnt_vita_opp60_edge(locked_x_fixed, playfield_x, playfield_cell, FALSE);
+                    int py0 = tnt_vita_opp60_edge(locked_y_fixed, playfield_y, playfield_cell, TRUE);
+                    int cw = tnt_vita_opp60_edge(locked_x_fixed + 0x100, playfield_x, playfield_cell, FALSE) - px0;
+                    int ch = tnt_vita_opp60_edge(locked_y_fixed + 0x100, playfield_y, playfield_cell, TRUE) - py0;
                     draw_cube_mino_textured(
                         buffer, px0, py0, cw, ch,
                         board_cell->cubeInfo.cube_ptr);
                 } else {
-                    int px0 = tnt_fixed_edge_to_pixel(
-                        locked_x_fixed, playfield_x, playfield_cell);
-                    int py0 = tnt_fixed_edge_to_pixel(
-                        locked_y_fixed, playfield_y, playfield_cell);
+                    int px0 = tnt_vita_opp60_edge(locked_x_fixed, playfield_x, playfield_cell, FALSE);
+                    int py0 = tnt_vita_opp60_edge(locked_y_fixed, playfield_y, playfield_cell, TRUE);
                     draw_rect(
                         buffer, px0, py0,
-                        tnt_fixed_edge_to_pixel(
-                            locked_x_fixed + 0x100, playfield_x, playfield_cell) - px0,
-                        tnt_fixed_edge_to_pixel(
-                            locked_y_fixed + 0x100, playfield_y, playfield_cell) - py0,
+                        tnt_vita_opp60_edge(locked_x_fixed + 0x100, playfield_x, playfield_cell, FALSE) - px0,
+                        tnt_vita_opp60_edge(locked_y_fixed + 0x100, playfield_y, playfield_cell, TRUE) - py0,
                         COLOR(
                             tnt_color_channel_to_u8(locked_tnt_color->diffuse_red),
                             tnt_color_channel_to_u8(locked_tnt_color->diffuse_green),
@@ -10808,12 +10930,12 @@ static void tnt_vita_render_tetris_player(
             if (falling_cube != NULL) {
                 s32 fx = falling_cube->unk2.unk6.p.x;
                 s32 fy = falling_cube->unk2.unk6.p.y;
-                int px0 = tnt_fixed_edge_to_pixel(fx, playfield_x, playfield_cell);
-                int py0 = tnt_fixed_edge_to_pixel(fy, playfield_y, playfield_cell);
+                int px0 = tnt_vita_opp60_edge(fx, playfield_x, playfield_cell, FALSE);
+                int py0 = tnt_vita_opp60_edge(fy, playfield_y, playfield_cell, TRUE);
                 draw_cube_mino_textured(
                     buffer, px0, py0,
-                    tnt_fixed_edge_to_pixel(fx + 0x100, playfield_x, playfield_cell) - px0,
-                    tnt_fixed_edge_to_pixel(fy + 0x100, playfield_y, playfield_cell) - py0,
+                    tnt_vita_opp60_edge(fx + 0x100, playfield_x, playfield_cell, FALSE) - px0,
+                    tnt_vita_opp60_edge(fy + 0x100, playfield_y, playfield_cell, TRUE) - py0,
                     falling_cube);
             }
         }
@@ -11023,6 +11145,7 @@ static void tnt_vita_render_tetris_player(
         buffer, DISPLAY_WIDTH, DISPLAY_HEIGHT, DISPLAY_STRIDE,
         screen_board_x, screen_board_y, screen_cell,
         &tetris_ptr->frameAct.unk10);
+    g_tnt_opp60_exact_board = FALSE;
     g_tnt_compact_playfield_active = FALSE;
 }
 
