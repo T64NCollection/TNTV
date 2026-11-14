@@ -461,6 +461,9 @@ static u32 g_tnt117_background_generation;
  * On entering a new match or returning from an external display owner,
  * initialize both complete buffers before using small rect restores. */
 static u8 g_tnt_3p_scene_buffer_ready[DISPLAY_BUFFER_COUNT];
+/* Opponent-only static-backdrop persistence, independently tracked for both
+ * scanout buffers. Local multiplayer deliberately keeps its approved path. */
+static u8 g_tnt_opp60_scene_buffer_ready[DISPLAY_BUFFER_COUNT];
 /* Profiler-only visibility for whether latest 3P frame used full restore. */
 static u8 g_tnt_3p_restore_full_last;
 static uint32_t g_tnt_gameplay_base_scene[DISPLAY_STRIDE * DISPLAY_HEIGHT];
@@ -3003,11 +3006,32 @@ static void tnt_vita_update_and_draw_fps(void *buffer) {
     }
 
     if (g_tnt_fps_counter_enabled) {
-        char text[48];
+        char text[96];
         snprintf(text, sizeof(text), "%u.%u FPS",
                  (unsigned)(g_tnt_fps_x10 / 10U),
                  (unsigned)(g_tnt_fps_x10 % 10U));
         tnt_vita_draw_debug_text(buffer, 14, 14, text);
+        /* PRIVATE Opponent60 test instrumentation, microseconds per frame.
+         * Enable only with L+R+SELECT. No game logic or clock changes.
+         * H=human update, A=AI, C=CPU update, B=scene/HUD,
+         * P0/P1=board draw, X=overlay, V=present/VBlank. */
+        if (g_tnt_ai_profile_active && g_tnt_2p_prof_mode == 79) {
+            snprintf(text, sizeof(text),
+                     "O H%u A%u C%u B%u",
+                     (unsigned)g_tnt_ai_prof_h_us,
+                     (unsigned)g_tnt_ai_prof_a_us,
+                     (unsigned)g_tnt_ai_prof_c_us,
+                     (unsigned)g_tnt_ai_prof_b_us);
+            tnt_vita_draw_debug_text(buffer, 14, 31, text);
+            snprintf(text, sizeof(text),
+                     "P0%u P1%u X%u V%u Amax%u",
+                     (unsigned)g_tnt_ai_prof_p0_us,
+                     (unsigned)g_tnt_ai_prof_p1_us,
+                     (unsigned)g_tnt_ai_prof_x_us,
+                     (unsigned)g_tnt_ai_prof_v_us,
+                     (unsigned)g_tnt_ai_prof_amax_us);
+            tnt_vita_draw_debug_text(buffer, 14, 48, text);
+        }
     }
 }
 
@@ -10551,6 +10575,10 @@ static void tnt_vita_tally_render(
 static void tnt_vita_prepare_opponent_background(
     u8 screen, int board_x, int board_y, int cell
 ) {
+    /* Background is recomposed on stage/match entry: invalidate both
+     * display buffers before permitting partial restoration. */
+    memset(g_tnt_opp60_scene_buffer_ready, 0,
+           sizeof(g_tnt_opp60_scene_buffer_ready));
     u8 culture = screen < TNT_OPPONENT_2P_CULTURE_COUNT
         ? screen : (TNT_OPPONENT_2P_CULTURE_COUNT - 1);
     const TNTOpponent2PBackground *bg =
@@ -11456,6 +11484,41 @@ static void __attribute__((optimize("Os"))) tnt_vita_3p_scene_rect(
                g_tnt_static_scene + (size_t)y * DISPLAY_STRIDE + x0,
                (size_t)(x1 - x0) * sizeof(uint32_t));
     }
+}
+
+/* Opponent60: use the original baked 2P culture scene as the background
+ * for each buffer, then restore only regions altered by two Tetris objects.
+ * Bounds are in the original N64 400x300 screen coordinate system and are
+ * deliberately padded for sprite/hold tween/ghost and square glow fringes:
+ *  - board 0: x57..157, board 1: x247..347, both y43..243;
+ *  - per-culture held pieces: x31..38 / x364..369, y43..58;
+ *  - all eight cultures have preview columns near x181 / x224, y49..160;
+ *  - two line counters, names, and original time panel are in the center.
+ * Endgame art and pause effects can cover other regions; those frames take
+ * the unchanged full-screen fallback. No fixed 30 Hz throttle is introduced.
+ *
+ * Important: rectangles are restored PER BUFFER, never by copying the last
+ * presented frame. The latter would accumulate alpha-blended piece ghosts. */
+static void tnt_vita_opp60_restore_scene(
+    void *buffer, int board_x, int board_y, int cell, u8 force_full
+) {
+    static const s16 rects[][4] = {
+        { 41,  31, 174, 257}, /* human board + ghost/settled squares */
+        {234,  31, 365, 257}, /* CPU board + ghost/settled squares */
+        { 13,  12,  80, 103}, /* human hold and swap motion */
+        {326,  12, 399, 103}, /* CPU hold and swap motion */
+        {157,  29, 246, 300}, /* previews, score, names, time */
+    };
+    u32 i;
+    if (force_full || !g_tnt_opp60_scene_buffer_ready[backBuffer]) {
+        memcpy(buffer, g_tnt_static_scene, sizeof(g_tnt_static_scene));
+        g_tnt_opp60_scene_buffer_ready[backBuffer] = TRUE;
+        return;
+    }
+    for (i = 0; i < sizeof(rects) / sizeof(rects[0]); ++i)
+        tnt_vita_restore_native_rect_from_scene(
+            buffer, g_tnt_static_scene, board_x, board_y, cell,
+            rects[i][0], rects[i][1], rects[i][2], rects[i][3]);
 }
 
 static void __attribute__((optimize("Os"))) tnt_vita_3p_restore_scene(
@@ -13994,6 +14057,10 @@ int main(int argc, char *argv[]) {
                 TNT_Vita_PauseResumeGame(
                     &pause_menu, &tetris,
                     &g_PV_arr[multiplayer_active ? multiplayer_pause_owner : 0]);
+                /* The Wonders viewer used both display buffers while 2P
+                 * gameplay was suspended; start with complete scenes. */
+                memset(g_tnt_opp60_scene_buffer_ready, 0,
+                       sizeof(g_tnt_opp60_scene_buffer_ready));
                 if (opponent_active || multiplayer_active) {
                     Tetris_FUN_80054220_fourliner(&opponent_tetris, FALSE);
                     TNT_Vita_SetGameplayAlpha(
@@ -14193,7 +14260,7 @@ int main(int argc, char *argv[]) {
             u8 active_count;
             u8 pause_was_active;
             s32 opponent_pause_action;
-            u8 ai_prof_on = FALSE;
+            u8 ai_prof_on = (u8)(opponent_active && g_tnt_fps_counter_enabled);
             u32 ai_prof_h=0, ai_prof_a=0, ai_prof_c=0;
             u32 ai_prof_b=0, ai_prof_p0=0, ai_prof_p1=0, ai_prof_x=0, ai_prof_v=0;
             u64 ai_prof_t0;
@@ -14377,7 +14444,16 @@ int main(int argc, char *argv[]) {
             }
 
             if (ai_prof_on) ai_prof_t0 = sceKernelGetProcessTimeWide();
-            memcpy(buffer, g_tnt_static_scene, sizeof(g_tnt_static_scene));
+            if (opponent_active) {
+                tnt_vita_opp60_restore_scene(
+                    buffer, board_x, board_y, cell,
+                    (u8)(pause_was_active ||
+                         TNT_Vita_PauseIsActive(&pause_menu) ||
+                         !tetris.unk2 || !opponent_tetris.unk2));
+            } else {
+                /* Preserve unmodified, approved local 2P multiplayer. */
+                memcpy(buffer, g_tnt_static_scene, sizeof(g_tnt_static_scene));
+            }
             tnt_vita_render_opponent_hud_dynamic(
                 buffer, board_x, board_y, cell,
                 active_game_type, outer_game_elapsed);
@@ -14407,8 +14483,12 @@ int main(int argc, char *argv[]) {
                     buffer, DISPLAY_STRIDE, DISPLAY_WIDTH, DISPLAY_HEIGHT,
                     board_x, board_y, cell, &pause_menu);
             }
-            tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+            /* swap_buffers() already draws this exact full surround.
+             * Do not draw it twice in CPU Opponent mode. */
+            if (multiplayer_active)
+                tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
             if (ai_prof_on) { ai_prof_x=(u32)(sceKernelGetProcessTimeWide()-ai_prof_t0); ai_prof_t0=sceKernelGetProcessTimeWide(); }
+            g_tnt_ai_profile_active = ai_prof_on;
             swap_buffers();
             if (ai_prof_on) {
                 ai_prof_v=(u32)(sceKernelGetProcessTimeWide()-ai_prof_t0);
