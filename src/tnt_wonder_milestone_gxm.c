@@ -233,6 +233,19 @@ static u16 s_intro_fog_first,s_intro_fog_count;
 static u16 s_intro_base_first[TNT_INTRO_DRAW_COUNT];
 /* Both light directions are constant for every vertex in a frame. */
 static f32 s_intro_light_dir[2][3];
+/* Test227D: source triangles commonly repeat an identical object normal
+ * several times (including between neighboring polygons). During a single
+ * intro pose, the scene light, model and draw material stay unchanged.
+ * Cache the evaluated 3-float lighting per original draw + exact normal.
+ * The key encodes draw index and all three signed raw normal bytes; the
+ * 32-bit epoch invalidates all cached colors once per animation pose. */
+#define TNT_INTRO_SHADE_CACHE_SIZE 2048U
+typedef struct {
+    u32 epoch, key;
+    f32 r,g,b;
+} TNTIntroShadeCache;
+static TNTIntroShadeCache s_intro_shade_cache[TNT_INTRO_SHADE_CACHE_SIZE];
+static u32 s_intro_shade_epoch=1U;
 static u16 s_complete_untex_count;
 static u16 s_celtic_run_shade_first[TNT_GXM_MAX_RUNS];
 static u16 s_celtic_run_shade_count[TNT_GXM_MAX_RUNS];
@@ -3627,7 +3640,16 @@ static u32 intro_pack_rgba(f32 r,f32 g,f32 b,f32 a) {
 }
 
 static void intro_vertex_shade(const TNTIntroPose *pose,const TNTIntroDrawDef *draw,const TNTGxmMatrix *model,
-                               const TNTIntroVertex *v,f32 *r,f32 *g,f32 *b) {
+                               const TNTIntroVertex *v,u32 draw_index,f32 *r,f32 *g,f32 *b) {
+    const u32 key = ((draw_index&0xffU)<<24) |
+        ((u32)(u8)v->nx<<16) | ((u32)(u8)v->ny<<8) | (u32)(u8)v->nz;
+    const u32 hash=(key^(key>>11)^(key>>19))*2654435761U;
+    TNTIntroShadeCache *slot=&s_intro_shade_cache[
+        (hash>>(32-11))&(TNT_INTRO_SHADE_CACHE_SIZE-1U)];
+    if(slot->epoch==s_intro_shade_epoch && slot->key==key) {
+        *r=slot->r;*g=slot->g;*b=slot->b;
+        return;
+    }
     if(draw->material_flags&0x08U){
         *r=(f32)(u8)v->nx/255.0f;*g=(f32)(u8)v->ny/255.0f;*b=(f32)(u8)v->nz/255.0f;
     }else{
@@ -3645,6 +3667,9 @@ static void intro_vertex_shade(const TNTIntroPose *pose,const TNTIntroDrawDef *d
         *b=pose->light[2][0]*pose->light[2][3]+d0*pose->light[0][0]*pose->light[0][3]+d1*pose->light[1][0]*pose->light[1][3];
         if(*r>1)*r=1;if(*g>1)*g=1;if(*b>1)*b=1;if(*r<0)*r=0;if(*g<0)*g=0;if(*b<0)*b=0;
     }
+    slot->key=key;
+    slot->r=*r;slot->g=*g;slot->b=*b;
+    slot->epoch=s_intro_shade_epoch;
 }
 
 static f32 intro_fog_factor(f32 view_z,f32 nearz,f32 farz,f32 fog_min,f32 fog_max) {
@@ -3662,6 +3687,11 @@ static int build_intro_geometry(f32 proj[16]) {
     u8 done[TNT_INTRO_NODE_COUNT]={0};
     f32 nearz,farz;u32 i,j;
     reset_geometry();s_intro_untex_runs=0;s_intro_shade_first=s_intro_shade_count=s_intro_fog_first=s_intro_fog_count=0;
+    /* Every pose gets a fresh shade cache, no malloc or repeated clears. */
+    if(++s_intro_shade_epoch==0U) {
+        memset(s_intro_shade_cache,0,sizeof(s_intro_shade_cache));
+        s_intro_shade_epoch=1U;
+    }
     update_intro_fade_textures(pose);intro_camera_view(pose,&view);intro_projection_matrix(pose,proj,&nearz,&farz);
     s_intro_light_dir[0][0]=pose->node[1][0];
     s_intro_light_dir[0][1]=pose->node[1][1];
@@ -3718,7 +3748,7 @@ static int build_intro_geometry(f32 proj[16]) {
         for(j=0;j<d->count;j++){
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 r,g,b,opacity;
             transform_point(&mv,(f32)v->x,(f32)v->y,(f32)v->z,&cv->x,&cv->y,&cv->z);
-            intro_vertex_shade(pose,d,&model,v,&r,&g,&b);r*=d->r;g*=d->g;b*=d->b;
+            intro_vertex_shade(pose,d,&model,v,i,&r,&g,&b);r*=d->r;g*=d->g;b*=d->b;
             opacity=(1.0f-pose->draw_transparency[i])*((f32)v->a/255.0f);cv->color=intro_pack_rgba(r,g,b,opacity);
         }
     }
@@ -3737,32 +3767,56 @@ static int build_intro_geometry(f32 proj[16]) {
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 r,g,b;
             { const TNTGxmTexVertex *base=&s_gxm.tex_vertices[s_intro_base_first[i]+j];
               cv->x=base->x;cv->y=base->y;cv->z=base->z; }
-            intro_vertex_shade(pose,d,&model,v,&r,&g,&b);cv->color=intro_pack_rgba(r,g,b,1.0f);
+            intro_vertex_shade(pose,d,&model,v,i,&r,&g,&b);cv->color=intro_pack_rgba(r,g,b,1.0f);
         }
     }
     s_intro_shade_count=s_gxm.color_count-s_intro_shade_first;
 
-    /* Source fog is at the extreme far plane (initially 995..999). A final
-     * depth-equal alpha pass reproduces the visual blend without a fog shader. */
+    /* The N64 intro fog commonly sits so far back that large spans of
+     * fully transparent fog triangles consume both CPU memory bandwidth and
+     * expensive full-geometry GPU alpha/depth-equal raster passes.
+     * Skip ONLY triangles where the final 8-bit fog alpha is exactly zero
+     * at all three vertices. Their interpolated alpha is identically 0, so
+     * this is pixel-equivalent to the previous transparent draw, including
+     * every original depth and lighting operation of the underlying mesh.
+     * Keep any triangle with even one nonzero vertex alpha, in source order. */
     s_intro_fog_first=s_gxm.color_count;
-    for(i=0;i<TNT_INTRO_DRAW_COUNT;i++){
-        const TNTIntroDrawDef *d=&g_tnt_intro_draws[i];
-        if(pose->draw_transparency[i]>=1.0f||(i>=73&&i<=77))continue;
-        if(i>=84)continue; /* two translucent untextured fades */
-        if(s_gxm.color_count+d->count>TNT_GXM_MAX_COLOR_VERTS)return -1;
-        for(j=0;j<d->count;j++){
-            const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 f;
-            /* Base textured and untextured passes have already produced
-             * exactly the same camera-space position for this source draw. */
-            if(d->texture!=255) {
-                const TNTGxmTexVertex *base=&s_gxm.tex_vertices[s_intro_base_first[i]+j];
-                cv->x=base->x;cv->y=base->y;cv->z=base->z;
-            } else {
-                const TNTGxmColorVertex *base=&s_gxm.color_vertices[s_intro_base_first[i]+j];
-                cv->x=base->x;cv->y=base->y;cv->z=base->z;
+    if(pose->fog[5]>0.0f && pose->fog[1]>pose->fog[0]) {
+        for(i=0;i<TNT_INTRO_DRAW_COUNT;i++){
+            const TNTIntroDrawDef *d=&g_tnt_intro_draws[i];
+            if(pose->draw_transparency[i]>=1.0f||(i>=73&&i<=77))continue;
+            if(i>=84)continue; /* two translucent untextured fades */
+            if(s_gxm.color_count+d->count>TNT_GXM_MAX_COLOR_VERTS)return -1;
+            if((d->count%3U)!=0U)return -1; /* authored triangle primitive */
+            for(j=0;j<d->count;j+=3U) {
+                TNTGxmColorVertex tri[3];
+                u32 used_alpha=0;
+                u32 k;
+                for(k=0;k<3U;k++) {
+                    f32 f;
+                    TNTGxmColorVertex *cv=&tri[k];
+                    /* Read the exact base pass camera-space coordinates,
+                     * preserving fog depth and the current source triangle. */
+                    if(d->texture!=255) {
+                        const TNTGxmTexVertex *base=
+                            &s_gxm.tex_vertices[s_intro_base_first[i]+j+k];
+                        cv->x=base->x;cv->y=base->y;cv->z=base->z;
+                    } else {
+                        const TNTGxmColorVertex *base=
+                            &s_gxm.color_vertices[s_intro_base_first[i]+j+k];
+                        cv->x=base->x;cv->y=base->y;cv->z=base->z;
+                    }
+                    f=intro_fog_factor(cv->z,nearz,farz,
+                        pose->fog[0],pose->fog[1])*pose->fog[5];
+                    cv->color=intro_pack_rgba(pose->fog[2],
+                        pose->fog[3],pose->fog[4],f);
+                    used_alpha |= cv->color & 0xff000000U;
+                }
+                if(used_alpha) {
+                    memcpy(s_gxm.color_vertices+s_gxm.color_count,tri,sizeof(tri));
+                    s_gxm.color_count+=3U;
+                }
             }
-            f=intro_fog_factor(cv->z,nearz,farz,pose->fog[0],pose->fog[1])*pose->fog[5];
-            cv->color=intro_pack_rgba(pose->fog[2],pose->fog[3],pose->fog[4],f);
         }
     }
     s_intro_fog_count=s_gxm.color_count-s_intro_fog_first;
