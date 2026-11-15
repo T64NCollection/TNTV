@@ -5208,12 +5208,16 @@ static void tnt_vita_multi_compose_settled_cache(
     tnt_vita_multi_patch_start_cache(board_x,board_y,cell,menu);
     tnt_vita_multi_record_cache_state(menu);
     g_tnt_multi_settled_valid=TRUE;
+    /* Rebuilt complete static page: both physical Vita buffers require a
+     * full restore before per-frame dynamic-only updates can resume. */
+    g_tnt_frontend_cache_generation++;
 }
 
 static void tnt_vita_multi_update_settled_cache(
     int board_x, int board_y, int cell, const TNTVitaMultiMenu *menu
 ) {
     int i;
+    u8 static_scene_changed=FALSE;
     u8 slots_changed=(u8)(g_tnt_multi_cache_pad_count!=menu->pad_count);
     u8 ready=tnt_vita_multi_ready(menu);
     for(i=0;i<4;i++) {
@@ -5222,6 +5226,7 @@ static void tnt_vita_multi_update_settled_cache(
             slots_changed=TRUE;
     }
     if(slots_changed) {
+        static_scene_changed=TRUE;
         tnt_vita_multi_patch_slots_cache(board_x,board_y,cell,menu);
         g_tnt_multi_cache_pad_count=menu->pad_count;
         for(i=0;i<4;i++) {
@@ -5230,17 +5235,22 @@ static void tnt_vita_multi_update_settled_cache(
         }
     }
     if(g_tnt_multi_cache_game_type!=menu->game_type) {
+        static_scene_changed=TRUE;
         tnt_vita_multi_patch_game_cache(board_x,board_y,cell,menu);
         g_tnt_multi_cache_game_type=menu->game_type;
     }
     if(g_tnt_multi_cache_garbage_type!=menu->garbage_type) {
+        static_scene_changed=TRUE;
         tnt_vita_multi_patch_garbage_cache(board_x,board_y,cell,menu);
         g_tnt_multi_cache_garbage_type=menu->garbage_type;
     }
     if(g_tnt_multi_cache_ready!=ready) {
+        static_scene_changed=TRUE;
         tnt_vita_multi_patch_start_cache(board_x,board_y,cell,menu);
         g_tnt_multi_cache_ready=ready;
     }
+    if(static_scene_changed)
+        g_tnt_frontend_cache_generation++;
 }
 
 static void tnt_vita_multi_draw_active_slots(
@@ -5341,7 +5351,15 @@ static void tnt_vita_multi_render(
         tnt_vita_multi_compose_settled_cache(board_x,board_y,cell,menu);
     else
         tnt_vita_multi_update_settled_cache(board_x,board_y,cell,menu);
-    memcpy(buffer,g_tnt_onep_settled_scene,sizeof(g_tnt_onep_settled_scene));
+    /* MULTI has four independently pulsing name-boxes plus the focused
+     * GAME/GARBAGE/START rows. All live pixels are contained within these
+     * conservative native bounds; restore them from the latest committed
+     * static page instead of copying the entire 2MiB display surface.
+     * Cache revision on any changed controller/slot/selection value forces
+     * both physical buffers to refresh completely before the next pulse. */
+    tnt_vita_frontend_restore_settled(
+        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+        24,70,382,255);
     tnt_vita_multi_draw_active_slots(buffer,board_x,board_y,cell,menu);
     tnt_vita_multi_draw_selected_row(buffer,board_x,board_y,cell,menu);
 }
