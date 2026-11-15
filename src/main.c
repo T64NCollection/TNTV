@@ -553,6 +553,22 @@ static u16 g_tnt_multi_slot_cache_w[4];
 static u16 g_tnt_multi_slot_cache_h[4];
 static u8 g_tnt_multi_slot_pulse_valid[4][TNT_MULTI_SLOT_PULSE_STATES];
 static u8 g_tnt_multi_slot_pulse_build_cursor;
+/* Private Test233D: memoize the completed text-box rectangle for the source
+ * NEW NAME choice. It is 8 glyphs, compared with BOB/GUEST (3/5), and is
+ * the only settled Single Player NAME choice that still cost ~30 FPS.
+ * The proven MULTI path uses the same 9 author-authored pulse colors.
+ * Reuse the already-rendered exact IA8 text and selection box in the
+ * physical pixel domain instead of resampling both every VBlank.
+ * Build ONE state per entrance frame, never all nine in one hitch. */
+#define TNT_ONEP_NEWNAME_W 281
+#define TNT_ONEP_NEWNAME_H 56
+#define TNT_ONEP_NEWNAME_PIXELS (TNT_ONEP_NEWNAME_W*TNT_ONEP_NEWNAME_H)
+static u32 *g_tnt_onep_newname_cache;
+static u8 g_tnt_onep_newname_alloc_attempted;
+static u8 g_tnt_onep_newname_ready[TNT_MULTI_SLOT_PULSE_STATES];
+static u8 g_tnt_onep_newname_build_cursor;
+static int g_tnt_onep_newname_dx,g_tnt_onep_newname_dy;
+static int g_tnt_onep_newname_w,g_tnt_onep_newname_h;
 #define TNT_MULTI_SLOT_CACHE_BYTES ((size_t)4 * TNT_MULTI_SLOT_PULSE_STATES * TNT_MULTI_SLOT_CACHE_PIXELS * sizeof(uint32_t))
 #define TNT_MULTI_SLOT_CACHE_PTR(slot_, state_) \
     (g_tnt_multi_slot_pulse_cache + \
@@ -2980,6 +2996,10 @@ static void tnt103b_sample(void) {
     }
 }
 static u8 g_tnt_fps_counter_enabled;
+/* Test233D PRIVATE timing overlay; remove before publishing v1.05. */
+static u8 g_tnt233_prof_credits,g_tnt233_prof_name;
+static u32 g_tnt233_credits_native_us,g_tnt233_credits_clear_us;
+static u32 g_tnt233_credits_gxm_us,g_tnt233_name_us;
 static u8 g_tnt_fps_combo_down;
 static u8 g_tnt_presentation_crop;
 static u8 g_tnt_intro_shim_active;
@@ -6655,6 +6675,8 @@ static void tnt_vita_onep_build_cache(
     g_tnt_onep_settled_valid = FALSE;
     g_tnt_onep_cache_kind = 0;
     g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_NONE;
+    g_tnt_onep_newname_build_cursor=0;
+    memset(g_tnt_onep_newname_ready,0,sizeof(g_tnt_onep_newname_ready));
     memcpy(
         g_tnt_onep_static_scene,
         g_tnt_menu_background_scene,
@@ -7361,15 +7383,36 @@ static void tnt_vita_onep_render_name_editor_dynamic(
         g_tnt_onep_selection_box_ia8,
         0xFF, pulse, pulse, pulse);
 
+    /* Source glyph order/alpha is unchanged, but several consecutive
+     * committed white characters can share ONE font call rather than
+     * rebuilding all 256 IA8 RGB-alpha lookup entries for EVERY glyph.
+     * The one pulsing edit-position character is drawn independently. */
     x = 0xB0 + 5;
-    for (i = 0; i < 8 && menu->edit_name[i] != 0; i++) {
-        u8 c = i == menu->editor_pos ? pulse : 0xFF;
-        glyph[0] = menu->edit_name[i];
-        TNT_Vita_FontB_DrawText(
-            buffer, DISPLAY_STRIDE, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            board_x, board_y, cell, x, 0x50 + 8, glyph,
-            c, c, c, c);
-        x += TNT_Vita_FontB_TextWidth(glyph);
+    {
+        char segment[9];
+        u8 run_color=0;
+        int run_start=x;
+        int run_size=0;
+        for(i=0;i<=8;i++) {
+            u8 c=(i<8 && menu->edit_name[i]!=0)
+                 ? (i==menu->editor_pos?pulse:0xFF):0;
+            if(c!=run_color || c==0) {
+                if(run_size) {
+                    segment[run_size]=0;
+                    TNT_Vita_FontB_DrawText(
+                        buffer,DISPLAY_STRIDE,DISPLAY_WIDTH,DISPLAY_HEIGHT,
+                        board_x,board_y,cell,run_start,0x50+8,segment,
+                        run_color,run_color,run_color,run_color);
+                }
+                run_color=c;
+                run_size=0;
+                run_start=x;
+            }
+            if(c==0)break;
+            glyph[0]=menu->edit_name[i];
+            segment[run_size++]=glyph[0];
+            x+=TNT_Vita_FontB_TextWidth(glyph);
+        }
     }
 
     tnt_vita_draw_original_ia8_sprite(
@@ -7551,6 +7594,76 @@ static void tnt_vita_onep_restore_native_strip(
     (void)y;
 }
 
+static void tnt_vita_onep_build_newname_pulse_step(
+    int board_x,int board_y,int cell
+) {
+    int state=(int)g_tnt_onep_newname_build_cursor;
+    int dx0,dy0,dx1,dy1,w,h,y;
+    uint32_t *tile;
+    u8 pulse;
+    if(state>=TNT_MULTI_SLOT_PULSE_STATES)return;
+    if(!g_tnt_onep_newname_cache) {
+        if(g_tnt_onep_newname_alloc_attempted)return;
+        g_tnt_onep_newname_alloc_attempted=TRUE;
+        g_tnt_onep_newname_cache=malloc(
+            (size_t)TNT_MULTI_SLOT_PULSE_STATES*
+            TNT_ONEP_NEWNAME_PIXELS*sizeof(u32));
+        if(!g_tnt_onep_newname_cache)return;
+    }
+    dx0=board_x+tnt_floor_div_s64((s64)(0xB0-83)*cell,11);
+    dy0=board_y+tnt_floor_div_s64((s64)(0x50-36)*cell,11);
+    dx1=board_x+tnt_floor_div_s64((s64)(0xB0+154-83)*cell+10,11);
+    dy1=board_y+tnt_floor_div_s64((s64)(0x50+30-36)*cell+10,11);
+    if(dx0<0||dy0<0||dx1>DISPLAY_WIDTH||dy1>DISPLAY_HEIGHT)return;
+    w=dx1-dx0;h=dy1-dy0;
+    if(w<1||h<1||w>TNT_ONEP_NEWNAME_W||h>TNT_ONEP_NEWNAME_H)return;
+    g_tnt_onep_newname_dx=dx0;
+    g_tnt_onep_newname_dy=dy0;
+    g_tnt_onep_newname_w=w;
+    g_tnt_onep_newname_h=h;
+    /* Gameplay's decode scratch is dormant throughout SINGLE setup,
+     * as in the hardware-tested MULTI pulse-cache builder. Only restore
+     * this exact region from the original static panel. */
+    tnt_vita_restore_native_rect_from_scene(
+        g_tnt_gameplay_base_scene,g_tnt_onep_static_scene,
+        board_x,board_y,cell,0xB0,0x50,0xB0+154,0x50+30);
+    pulse=g_tnt_multi_pulse_levels[state];
+    tnt_vita_draw_original_ia8_sprite_tinted(
+        g_tnt_gameplay_base_scene,board_x,board_y,cell,
+        0xB0,0x50,154,30,g_tnt_onep_selection_box_ia8,
+        0xFF,pulse,pulse,pulse);
+    TNT_Vita_FontB_DrawText(
+        g_tnt_gameplay_base_scene,DISPLAY_STRIDE,DISPLAY_WIDTH,DISPLAY_HEIGHT,
+        board_x,board_y,cell,0xB0+5,0x50+8,"NEW NAME",
+        0xFF,pulse,pulse,pulse);
+    tile=g_tnt_onep_newname_cache+
+         (size_t)state*TNT_ONEP_NEWNAME_PIXELS;
+    for(y=0;y<h;y++) {
+        memcpy(tile+y*TNT_ONEP_NEWNAME_W,
+               g_tnt_gameplay_base_scene+(dy0+y)*DISPLAY_STRIDE+dx0,
+               (size_t)w*sizeof(u32));
+    }
+    g_tnt_onep_newname_ready[state]=TRUE;
+    g_tnt_onep_newname_build_cursor++;
+}
+static u8 tnt_vita_onep_draw_cached_newname(void *buffer,u8 pulse) {
+    int state=tnt_vita_multi_pulse_cache_index(pulse);
+    int y;
+    const u32 *tile;
+    u32 *dst=(u32 *)buffer;
+    if(!g_tnt_onep_newname_cache||
+       !g_tnt_onep_newname_ready[state])return FALSE;
+    tile=g_tnt_onep_newname_cache+
+         (size_t)state*TNT_ONEP_NEWNAME_PIXELS;
+    for(y=0;y<g_tnt_onep_newname_h;y++) {
+        memcpy(dst+(g_tnt_onep_newname_dy+y)*DISPLAY_STRIDE+
+               g_tnt_onep_newname_dx,
+               tile+y*TNT_ONEP_NEWNAME_W,
+               (size_t)g_tnt_onep_newname_w*sizeof(u32));
+    }
+    return TRUE;
+}
+
 static void tnt_vita_onep_render_selected_row(
     void *buffer,
     int board_x,
@@ -7581,15 +7694,22 @@ static void tnt_vita_onep_render_selected_row(
             buffer, DISPLAY_STRIDE, DISPLAY_WIDTH, DISPLAY_HEIGHT,
             board_x, board_y, cell, 0x3C, 0x51, TNTV_ROM_OriginalText(40U),
             0xFF, 0xFF, 0xFF, pulse);
-        tnt_vita_draw_original_ia8_sprite_tinted(
-            buffer, board_x, board_y, cell,
-            0xB0, 0x50, 154, 30,
-            g_tnt_onep_selection_box_ia8,
-            0xFF, pulse, pulse, pulse);
-        TNT_Vita_FontB_DrawText(
-            buffer, DISPLAY_STRIDE, DISPLAY_WIDTH, DISPLAY_HEIGHT,
-            board_x, board_y, cell, 0xB0 + 5, 0x50 + 8, name_text,
-            0xFF, pulse, pulse, pulse);
+        /* NEW NAME is the long, hot selection; its box and eight glyphs
+         * are already composited against the source background for the
+         * same nine pulse states used by the proven MULTI name-box path.
+         * GUEST and saved profiles retain their existing exact rendering. */
+        if(menu->name_entry!=1 ||
+           !tnt_vita_onep_draw_cached_newname(buffer,pulse)) {
+            tnt_vita_draw_original_ia8_sprite_tinted(
+                buffer, board_x, board_y, cell,
+                0xB0, 0x50, 154, 30,
+                g_tnt_onep_selection_box_ia8,
+                0xFF, pulse, pulse, pulse);
+            TNT_Vita_FontB_DrawText(
+                buffer, DISPLAY_STRIDE, DISPLAY_WIDTH, DISPLAY_HEIGHT,
+                board_x, board_y, cell, 0xB0 + 5, 0x50 + 8, name_text,
+                0xFF, pulse, pulse, pulse);
+        }
         return;
     }
 
@@ -7661,6 +7781,10 @@ static void tnt_vita_onep_render(
     const TNTVitaOnePlayerMenu *menu
 ) {
     u32 key;
+    /* Prewarm one exact preblend per entrance frame before NAME can be
+     * focused. No image frame is held and no game-mode timebase is changed. */
+    if(g_tnt_onep_newname_build_cursor<TNT_MULTI_SLOT_PULSE_STATES)
+        tnt_vita_onep_build_newname_pulse_step(board_x,board_y,cell);
 
     /* The cheat can be turned ON or OFF from the NEW NAME editor while
      * SINGLE is already open. Rebuild only the static scene on a flag
@@ -7687,8 +7811,14 @@ static void tnt_vita_onep_render(
         tnt_vita_onep_restore_editor_dynamic(
             buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
             menu->editor_char);
-        tnt_vita_onep_render_name_editor_dynamic(
-            buffer, board_x, board_y, cell, menu, pulse);
+        {
+            u64 measure=sceKernelGetProcessTimeWide();
+            tnt_vita_onep_render_name_editor_dynamic(
+                buffer, board_x, board_y, cell, menu, pulse);
+            g_tnt233_name_us=(u32)(
+                sceKernelGetProcessTimeWide()-measure);
+            g_tnt233_prof_name=1;
+        }
         return;
     }
 
@@ -7716,8 +7846,16 @@ static void tnt_vita_onep_render(
     tnt_vita_frontend_restore_old_focus(
         buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
         0U,menu->selected,(u8)(TNT_Vita_SramGetUnlockAll()!=0));
-    tnt_vita_onep_render_selected_row(
-        buffer, board_x, board_y, cell, menu);
+    {
+        u64 measure=sceKernelGetProcessTimeWide();
+        tnt_vita_onep_render_selected_row(
+            buffer, board_x, board_y, cell, menu);
+        if(menu->selected==0) {
+            g_tnt233_name_us=(u32)(
+                sceKernelGetProcessTimeWide()-measure);
+            g_tnt233_prof_name=1;
+        }
+    }
 }
 
 static void tnt_vita_draw_mayan_moon_layer(
@@ -8687,11 +8825,18 @@ static void tnt_vita_credits_render(
     int board_x, int board_y, int cell, const TNTVitaCredits *credits
 ) {
     int rendered = -1;
+    u64 mark=sceKernelGetProcessTimeWide();
     tnt_vita_credits_build_native_frame(credits);
+    g_tnt233_credits_native_us=(u32)(
+        sceKernelGetProcessTimeWide()-mark);
+    mark=sceKernelGetProcessTimeWide();
 
     /* Only the pillarbox area needs a CPU clear. A single memset is still far
      * cheaper than the old per-output-pixel text/filtering path. */
     memset(buffer, 0, DISPLAY_STRIDE * DISPLAY_HEIGHT * sizeof(u32));
+    g_tnt233_credits_clear_us=(u32)(
+        sceKernelGetProcessTimeWide()-mark);
+    mark=sceKernelGetProcessTimeWide();
     if (g_tnt_milestone_gxm_ready) {
         rendered = TNT_Vita_CreditsGxmRender(
             surface, sync, board_x, board_y, cell,
@@ -8700,6 +8845,9 @@ static void tnt_vita_credits_render(
 
     /* Safety fallback if the GXM helper is unavailable: point-scale the native
      * frame. This is not the intended path but keeps Credits functional. */
+    g_tnt233_credits_gxm_us=(u32)(
+        sceKernelGetProcessTimeWide()-mark);
+    g_tnt233_prof_credits=1;
     if (rendered < 0) {
         u32 *dst = (u32 *)buffer;
         int y;
@@ -11951,6 +12099,27 @@ static void swap_buffers(void) {
             buffers[backBuffer].data, TNT_PRESENT_BOARD_X, TNT_PRESENT_CELL);
     }
     tnt_vita_update_and_draw_fps(buffers[backBuffer].data);
+    if(g_tnt_fps_counter_enabled &&
+       (g_tnt233_prof_credits||g_tnt233_prof_name)) {
+        char line[32];
+        if(g_tnt233_prof_credits) {
+            snprintf(line,sizeof(line),"N %lu",
+                (unsigned long)g_tnt233_credits_native_us);
+            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,34,line);
+            snprintf(line,sizeof(line),"C %lu",
+                (unsigned long)g_tnt233_credits_clear_us);
+            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,49,line);
+            snprintf(line,sizeof(line),"G %lu",
+                (unsigned long)g_tnt233_credits_gxm_us);
+            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,64,line);
+        } else {
+            snprintf(line,sizeof(line),"NAME %lu",
+                (unsigned long)g_tnt233_name_us);
+            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,34,line);
+        }
+    }
+    g_tnt233_prof_credits=0;
+    g_tnt233_prof_name=0;
     g_tnt_wonder_profile_active=FALSE;
 
     sceGxmPadHeartbeat(
