@@ -8356,6 +8356,22 @@ static void tnt_vita_credits_compose_background(const TNTVitaCredits *credits) {
     }
 }
 
+/* Exact 8-bit gray antialias blend for CREDITS' scrolling glyphs.
+ * Same final RGB as tnt_alpha_blend_rgb but avoid a function call and
+ * three /255 divisions on each individual illuminated source texel.
+ * The credits effect background and subpixel scroll values are unchanged. */
+static inline u32 tnt_vita_credits_blend_gray_fast(u32 dst, u32 v, u32 alpha) {
+    u32 inv=255U-alpha;
+    u32 premul=v*alpha+127U;
+    u32 rn=premul+(dst&0xffU)*inv;
+    u32 gn=premul+((dst>>8)&0xffU)*inv;
+    u32 bn=premul+((dst>>16)&0xffU)*inv;
+    u32 r=(rn+1U+(rn>>8))>>8;
+    u32 g=(gn+1U+(gn>>8))>>8;
+    u32 b=(bn+1U+(bn>>8))>>8;
+    return COLOR(r,g,b);
+}
+
 static void tnt_vita_credits_draw_native_line(
     int native_x, s32 native_y_q16, const char *text, int font_b
 ) {
@@ -8396,13 +8412,13 @@ static void tnt_vita_credits_draw_native_line(
                 a1 = (u8)(((u32)tex_alpha * frac + 32768U) >> 16);
                 if (a0 && py0 >= 0 && py0 < 300) {
                     u32 *pixel = &g_tnt_credits_native_frame[py0 * 400 + px];
-                    *pixel = tnt_alpha_blend_rgb(
-                        *pixel, intensity, intensity, intensity, a0);
+                    *pixel = tnt_vita_credits_blend_gray_fast(
+                        *pixel, intensity, a0);
                 }
                 if (a1 && py1 >= 0 && py1 < 300) {
                     u32 *pixel = &g_tnt_credits_native_frame[py1 * 400 + px];
-                    *pixel = tnt_alpha_blend_rgb(
-                        *pixel, intensity, intensity, intensity, a1);
+                    *pixel = tnt_vita_credits_blend_gray_fast(
+                        *pixel, intensity, a1);
                 }
             }
         }

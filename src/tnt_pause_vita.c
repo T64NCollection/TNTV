@@ -85,6 +85,11 @@ static void font_draw_text(
     u8 g_lut[16];
     u8 b_lut[16];
     u8 a_lut[16];
+    /* For every source IA8 texel (4 bits intensity, 4 bits alpha),
+     * precompute each pre-multiplied source channel ONCE per text draw.
+     * This eliminates three extra src*alpha products per destination
+     * pixel without changing any original 8-bit tint rounding. */
+    u16 premul_r[256],premul_g[256],premul_b[256];
     s32 level;
 
     /* IA8 has only sixteen intensity and sixteen alpha levels.  The old hot
@@ -97,6 +102,13 @@ static void font_draw_text(
         g_lut[level] = (u8)(((u32)green * v + 127U) / 255U);
         b_lut[level] = (u8)(((u32)blue * v + 127U) / 255U);
         a_lut[level] = (u8)(((u32)v * global_alpha + 127U) / 255U);
+    }
+    for (level=0;level<256;level++) {
+        u32 i=(u32)level>>4;
+        u32 a=a_lut[level&15];
+        premul_r[level]=(u16)(r_lut[i]*a);
+        premul_g[level]=(u16)(g_lut[i]*a);
+        premul_b[level]=(u16)(b_lut[i]*a);
     }
 
     while (*text != '\0') {
@@ -155,12 +167,19 @@ static void font_draw_text(
                     s32 x;
                     for (x = dx0; x < dx1; x++) {
                         uint32_t *pixel = &dst[y * stride + x];
-                        *pixel = blend_rgb(
-                            *pixel,
-                            r_lut[ia >> 4],
-                            g_lut[ia >> 4],
-                            b_lut[ia >> 4],
-                            alpha);
+                        {
+                            u32 old=*pixel;
+                            u32 inv=255U-alpha;
+                            u32 rn=(u32)premul_r[ia]+(old&0xffU)*inv+127U;
+                            u32 gn=(u32)premul_g[ia]+((old>>8)&0xffU)*inv+127U;
+                            u32 bn=(u32)premul_b[ia]+((old>>16)&0xffU)*inv+127U;
+                            /* Exactly (n / 255) for every 0<=n-127<=65025.
+                             * Used by the existing tinted IA8 sprite path. */
+                            u32 rr=(rn+1U+(rn>>8))>>8;
+                            u32 gg=(gn+1U+(gn>>8))>>8;
+                            u32 bb=(bn+1U+(bn>>8))>>8;
+                            *pixel=rr|(gg<<8)|(bb<<16)|0xff000000U;
+                        }
                     }
                 }
             }
