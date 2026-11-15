@@ -1,3 +1,22 @@
+# TNTV v1.05 — 60 FPS intro, menus and Credits
+
+## What's new in v1.05
+
+- **Opening sequence at ~60 FPS:** Developer splash, the full *Tetris in the Sand* cinematic, and Press Start title, preserving original animation timing, fade behavior and audio.
+- **Faster frontend:** Main menu, Single Player setup, New Name selection/typing keyboard, Options, Data, Audio and Scores tuned to **~60 FPS** on handheld Vita, including previously slower menu highlights.
+- **Scrolling Credits at 60 FPS:** Dense programmer and artist names now scroll smoothly while keeping the complete original credits, imagery and spotlight animation.
+- Original Solo and CPU Opponent modes, Wonder progression, music, profiles and controls remain intact. The optional **L + R + Select FPS counter** stays; temporary development timing readouts have been removed.
+
+These optimizations were tested on physical handheld Vita. Some brief FPS fluctuations can still occur. **Wonder construction animations, the complete finale and 2–4-player gameplay are not included in this 60 FPS upgrade.** Existing local multiplayer remains available, but its menu and gameplay performance will be addressed in a separate future pass.
+
+## Updating from earlier TNTV releases
+
+Install **TNTV_v1.05.vpk** over your existing TNTV installation using VitaShell. The app retains Title ID **NTET00001**; **do not delete `ux0:/data/TNTV/`**, which contains your user-supplied ROM, locally generated assets, profiles, scores and Wonder progress. No ROM rename, cache reset or save migration is required.
+
+A new install still requires your own compatible *The New Tetris* (USA 1.0) Nintendo 64 ROM in `.z64`, `.v64` or `.n64` format. No original game ROM or extracted game media is bundled.
+
+---
+
 # TNTV v1.01 — Single Player Opponent 60 FPS update
 
 ## What's new in v1.01

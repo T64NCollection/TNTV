@@ -1,6 +1,6 @@
 # TNTV installation and first launch
 
-This guide describes the ROM loader shipped with TNTV v1.01 (also compatible with the original v1.0 setup). TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV (PSTV / Vita TV).
+This guide describes the ROM loader shipped with TNTV v1.05 (compatible with previous v1.0/v1.01 setups). TNTV is an unofficial homebrew port for PlayStation Vita and PlayStation TV (PSTV / Vita TV).
 
 ## Requirements
 
