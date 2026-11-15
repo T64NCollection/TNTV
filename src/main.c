@@ -527,6 +527,8 @@ static u32 g_tnt_frontend_cache_key;
 static u32 g_tnt_frontend_cache_generation=1U;
 static u32 g_tnt_frontend_buffer_generation[DISPLAY_BUFFER_COUNT];
 static u8 g_tnt_frontend_cached_frame_used;
+static u8 g_tnt_frontend_previous_row[DISPLAY_BUFFER_COUNT]={255U,255U};
+static u8 g_tnt_frontend_previous_cursor[DISPLAY_BUFFER_COUNT]={255U,255U};
 static u8 g_tnt_multi_settled_valid;
 static u8 g_tnt_multi_cache_game_type;
 static u8 g_tnt_multi_cache_garbage_type;
@@ -2357,6 +2359,77 @@ static void tnt_vita_frontend_restore_settled(
     g_tnt_frontend_buffer_generation[backBuffer] =
         g_tnt_frontend_cache_generation;
     g_tnt_frontend_cached_frame_used = TRUE;
+}
+
+/* Test232D: settled SINGLE / DATA / AUDIO pages change at most one focus
+ * row per input frame. On a framebuffer reused two VBlanks later, the
+ * selected row renderer already restores/repaints its own current strip.
+ * Therefore only the previous, no-longer-selected strip needs restoring
+ * from the exact static unselected page. No full-page dynamic rectangle. */
+static void tnt_vita_frontend_restore_old_focus(
+    void *buffer, const uint32_t *scene,
+    int board_x,int board_y,int cell,u8 kind,u8 selected,u8 unlock
+) {
+    static const u16 data_y0[4]={80,105,156,198};
+    static const u16 data_y1[4]={115,138,187,243};
+    static const u16 audio_y0[4]={86,116,169,197};
+    static const u16 audio_y1[4]={114,144,194,240};
+    u8 old=g_tnt_frontend_previous_row[backBuffer];
+    u8 was_current=(u8)(g_tnt_frontend_buffer_generation[backBuffer]==
+                             g_tnt_frontend_cache_generation);
+    tnt_vita_frontend_restore_settled(
+        buffer,scene,board_x,board_y,cell,0,0,0,0);
+    if(was_current && old!=255U && old!=selected) {
+        int y0=0,y1=0,x0=40,x1=400;
+        if(kind==0U) {
+            switch(old) {
+            case 0: y0=76;y1=114;break;
+            case 1: y0=132;y1=156;break;
+            case 2: y0=162;y1=187;break;
+            case 3:
+                y0=unlock?192:198;
+                y1=unlock?217:232;
+                break;
+            case 4: y0=222;y1=255;break;
+            default: break;
+            }
+        } else if(kind==1U && old<4U) {
+            y0=data_y0[old];y1=data_y1[old];x0=65;x1=365;
+        } else if(kind==2U && old<4U) {
+            y0=audio_y0[old];y1=audio_y1[old];x0=45;x1=355;
+        }
+        if(y1>y0) {
+            tnt_vita_restore_native_rect_from_scene(
+                buffer,scene,board_x,board_y,cell,x0,y0,x1,y1);
+        }
+    }
+    g_tnt_frontend_previous_row[backBuffer]=selected;
+}
+
+static void tnt_vita_onep_restore_editor_dynamic(
+    void *buffer, const uint32_t *scene,
+    int board_x,int board_y,int cell,u8 cursor
+) {
+    u8 old=g_tnt_frontend_previous_cursor[backBuffer];
+    u8 was_current=(u8)(g_tnt_frontend_buffer_generation[backBuffer]==
+        g_tnt_frontend_cache_generation);
+    tnt_vita_frontend_restore_settled(
+        buffer,scene,board_x,board_y,cell,0,0,0,0);
+    /* NAME + typed characters pulse in this strip each render; restore
+     * exact static background and keyboard independently. */
+    tnt_vita_restore_native_rect_from_scene(
+        buffer,scene,board_x,board_y,cell,48,72,367,117);
+    if(was_current && old<45U && old!=cursor) {
+        int x=59+(old%15U)*18,y=126+(old/15U)*23;
+        tnt_vita_restore_native_rect_from_scene(
+            buffer,scene,board_x,board_y,cell,x,y,x+26,y+26);
+    }
+    if(cursor<45U) {
+        int x=59+(cursor%15U)*18,y=126+(cursor/15U)*23;
+        tnt_vita_restore_native_rect_from_scene(
+            buffer,scene,board_x,board_y,cell,x,y,x+26,y+26);
+    }
+    g_tnt_frontend_previous_cursor[backBuffer]=cursor;
 }
 
 static int tnt_vita_gameplay_side_mask_width(u8 gameplay_screen) {
@@ -6037,10 +6110,16 @@ static void tnt_vita_data_render(
         g_tnt_frontend_cache_kind = kind;
     }
 
-    tnt_vita_frontend_restore_settled(
-        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
-        kind==1U?65:0,kind==1U?80:0,
-        kind==1U?365:0,kind==1U?255:0);
+    if(kind==1U) {
+        u8 current=menu->name_selecting?3U:menu->selected;
+        tnt_vita_frontend_restore_old_focus(
+            buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+            1U,current,0U);
+    } else {
+        tnt_vita_frontend_restore_settled(
+            buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+            0,0,0,0);
+    }
 
     /* Static dialog states need no live drawing at all. */
     if (kind != 1U)
@@ -6423,9 +6502,9 @@ static void tnt_vita_audio_render(
         g_tnt_frontend_cache_key = key;
     }
 
-    tnt_vita_frontend_restore_settled(
+    tnt_vita_frontend_restore_old_focus(
         buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
-        45,79,355,245);
+        2U,menu->selected,0U);
     pulse = (u8)(menu->pulse * 255.0f);
 
     if (menu->selected == 0) {
@@ -7460,11 +7539,16 @@ static void tnt_vita_onep_restore_native_strip(
     int y;
     if (dy0 < 0) dy0 = 0;
     if (dy1 > DISPLAY_HEIGHT) dy1 = DISPLAY_HEIGHT;
-    for (y = dy0; y < dy1; y++) {
-        memcpy(dst + y * DISPLAY_STRIDE,
-               g_tnt_onep_static_scene + y * DISPLAY_STRIDE,
-               DISPLAY_WIDTH * sizeof(uint32_t));
-    }
+    /* Original full-width 960px restore is unnecessary for the 400-native-px
+     * SINGLE panel: it copies bezel pixels and outside-panel areas on every
+     * selected row. Exact source image remains untouched. */
+    tnt_vita_restore_native_rect_from_scene(
+        buffer,g_tnt_onep_static_scene,board_x,board_y,cell,
+        40,native_y0,400,native_y1);
+    (void)dst;
+    (void)dy0;
+    (void)dy1;
+    (void)y;
 }
 
 static void tnt_vita_onep_render_selected_row(
@@ -7600,9 +7684,9 @@ static void tnt_vita_onep_render(
             g_tnt_frontend_cache_owner != TNT_FRONTEND_CACHE_ONEP ||
             g_tnt_onep_cache_kind != 2)
             tnt_vita_onep_build_editor_cache(board_x, board_y, cell, menu);
-        tnt_vita_frontend_restore_settled(
+        tnt_vita_onep_restore_editor_dynamic(
             buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
-            48,72,367,258);
+            menu->editor_char);
         tnt_vita_onep_render_name_editor_dynamic(
             buffer, board_x, board_y, cell, menu, pulse);
         return;
@@ -7629,9 +7713,9 @@ static void tnt_vita_onep_render(
         g_tnt_frontend_cache_generation++;
     }
 
-    tnt_vita_frontend_restore_settled(
+    tnt_vita_frontend_restore_old_focus(
         buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
-        48,72,367,258);
+        0U,menu->selected,(u8)(TNT_Vita_SramGetUnlockAll()!=0));
     tnt_vita_onep_render_selected_row(
         buffer, board_x, board_y, cell, menu);
 }
@@ -8372,6 +8456,112 @@ static inline u32 tnt_vita_credits_blend_gray_fast(u32 dst, u32 v, u32 alpha) {
     return COLOR(r,g,b);
 }
 
+/* Precompile the 181 authored credits lines into sparse source IA8
+ * samples one time. No character decode/width lookup, raster glyph scan,
+ * or transparent texel visit during later animated credit frames. Samples
+ * preserve exact original order of glyph, source row and source column. */
+typedef struct {
+    u16 x;
+    u8 y;
+    u8 ia;
+} TNTCreditsSample;
+static TNTCreditsSample *g_tnt_credits_glyph_samples;
+static u32 g_tnt_credits_line_start[182];
+static u8 g_tnt_credits_glyph_cache_attempted;
+
+static void tnt_vita_credits_prepare_glyph_cache(void) {
+    u32 total=0;
+    u16 line_no;
+    if(g_tnt_credits_glyph_cache_attempted)return;
+    g_tnt_credits_glyph_cache_attempted=1;
+    if(g_tnt_credits_line_count>181U)return;
+    /* Two passes: count then fill an exactly sized allocation; no large
+     * fixed maximum table and no per-frame heap allocation. */
+    for(int pass=0;pass<2;pass++) {
+        u32 offset=0;
+        for(line_no=0;line_no<g_tnt_credits_line_count;line_no++) {
+            const char *text=g_tnt_credits_lines[line_no];
+            int font_b=g_tnt_credits_font_is_b[line_no]!=0;
+            const u8 *image=font_b?g_tnt_font_b_ia8:g_tnt_font_c_ia8;
+            const u8 *widths=font_b?g_tnt_font_b_char_widths:
+                                    g_tnt_font_c_char_widths;
+            int stride=font_b?16:13;
+            int height=font_b?14:12;
+            int pen_x=(400-(font_b?TNT_Vita_FontB_TextWidth(text):
+                          tnt_vita_font_c_text_width_native(text)))>>1;
+            if(pass==1)g_tnt_credits_line_start[line_no]=offset;
+            while(*text) {
+                unsigned c=(unsigned char)*text++;
+                if(c>='a'&&c<='z')c-=32;
+                if(c<32||c>=96)continue;
+                u8 glyph=g_tnt_font_c_map[c-32];
+                int w=widths[glyph];
+                for(int gy=0;gy<height;gy++) {
+                    for(int gx=0;gx<w;gx++) {
+                        int px=pen_x+gx;
+                        u8 ia;
+                        if(px<0||px>=400)continue;
+                        ia=image[(int)glyph*stride*height+gy*stride+gx];
+                        if(!(ia&15U))continue;
+                        if(pass==1) {
+                            TNTCreditsSample *v=&g_tnt_credits_glyph_samples[offset];
+                            v->x=(u16)px;v->y=(u8)gy;v->ia=ia;
+                        }
+                        offset++;
+                    }
+                }
+                pen_x+=w;
+            }
+        }
+        if(pass==0) {
+            total=offset;
+            if(!total)return;
+            g_tnt_credits_glyph_samples=malloc(
+                (size_t)total*sizeof(TNTCreditsSample));
+            if(!g_tnt_credits_glyph_samples)return;
+        } else {
+            if(offset!=total) {
+                free(g_tnt_credits_glyph_samples);
+                g_tnt_credits_glyph_samples=NULL;
+                return;
+            }
+            g_tnt_credits_line_start[g_tnt_credits_line_count]=offset;
+        }
+    }
+}
+
+static void tnt_vita_credits_draw_sparse_line(
+    u16 line_no,s32 native_y_q16
+) {
+    s32 base_y=tnt_floor_div_s64((s64)native_y_q16,65536);
+    u32 frac=(u32)((s64)native_y_q16-((s64)base_y<<16));
+    u8 alpha0[16],alpha1[16];
+    int level;
+    u32 i;
+    for(level=0;level<16;level++) {
+        u32 a=(u32)level*17U;
+        alpha0[level]=(u8)((a*(65536U-frac)+32768U)>>16);
+        alpha1[level]=(u8)((a*frac+32768U)>>16);
+    }
+    for(i=g_tnt_credits_line_start[line_no];
+        i<g_tnt_credits_line_start[line_no+1];i++) {
+        const TNTCreditsSample *sample=&g_tnt_credits_glyph_samples[i];
+        int y=base_y+(int)sample->y;
+        u32 intensity=((u32)sample->ia>>4)*17U;
+        u8 level=sample->ia&15U;
+        if(alpha0[level] && y>=0 && y<300) {
+            u32 *pixel=&g_tnt_credits_native_frame[y*400+sample->x];
+            *pixel=tnt_vita_credits_blend_gray_fast(
+                *pixel,intensity,alpha0[level]);
+        }
+        if(alpha1[level] && y+1>=0 && y+1<300) {
+            u32 *pixel=&g_tnt_credits_native_frame[(y+1)*400+sample->x];
+            *pixel=tnt_vita_credits_blend_gray_fast(
+                *pixel,intensity,alpha1[level]);
+        }
+    }
+}
+
 static void tnt_vita_credits_draw_native_line(
     int native_x, s32 native_y_q16, const char *text, int font_b
 ) {
@@ -8446,8 +8636,12 @@ static void tnt_vita_credits_build_native_frame(const TNTVitaCredits *credits) {
         if (y_q16 < (300 << 16) && y_q16 + (h << 16) >= 0) {
             int width = is_b ? TNT_Vita_FontB_TextWidth(line)
                              : tnt_vita_font_c_text_width_native(line);
-            tnt_vita_credits_draw_native_line(
-                (400 - width) >> 1, y_q16, line, is_b);
+            if(g_tnt_credits_glyph_samples) {
+                tnt_vita_credits_draw_sparse_line(i,y_q16);
+            } else {
+                tnt_vita_credits_draw_native_line(
+                    (400 - width) >> 1,y_q16,line,is_b);
+            }
         }
         y_q16 += h << 16;
     }
@@ -8464,6 +8658,7 @@ static void tnt_vita_credits_enter(TNTVitaCredits *credits) {
     credits->start_us = sceKernelGetProcessTimeWide();
     credits->scroll_q16 = 0;
     tnt_vita_credits_prepare_effect();
+    tnt_vita_credits_prepare_glyph_cache();
 }
 
 static int tnt_vita_credits_update(
