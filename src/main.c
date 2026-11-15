@@ -3017,10 +3017,6 @@ static void tnt103b_sample(void) {
     }
 }
 static u8 g_tnt_fps_counter_enabled;
-/* Test233D PRIVATE timing overlay; remove before publishing v1.05. */
-static u8 g_tnt233_prof_credits,g_tnt233_prof_name;
-static u32 g_tnt233_credits_native_us,g_tnt233_credits_clear_us;
-static u32 g_tnt233_credits_gxm_us,g_tnt233_name_us;
 static u8 g_tnt_fps_combo_down;
 static u8 g_tnt_presentation_crop;
 static u8 g_tnt_intro_shim_active;
@@ -7921,14 +7917,8 @@ static void tnt_vita_onep_render(
         tnt_vita_onep_restore_editor_dynamic(
             buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
             menu->editor_char);
-        {
-            u64 measure=sceKernelGetProcessTimeWide();
-            tnt_vita_onep_render_name_editor_dynamic(
-                buffer, board_x, board_y, cell, menu, pulse);
-            g_tnt233_name_us=(u32)(
-                sceKernelGetProcessTimeWide()-measure);
-            g_tnt233_prof_name=1;
-        }
+        tnt_vita_onep_render_name_editor_dynamic(
+            buffer, board_x, board_y, cell, menu, pulse);
         return;
     }
 
@@ -7956,16 +7946,8 @@ static void tnt_vita_onep_render(
     tnt_vita_frontend_restore_old_focus(
         buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
         0U,menu->selected,(u8)(TNT_Vita_SramGetUnlockAll()!=0));
-    {
-        u64 measure=sceKernelGetProcessTimeWide();
-        tnt_vita_onep_render_selected_row(
-            buffer, board_x, board_y, cell, menu);
-        if(menu->selected==0) {
-            g_tnt233_name_us=(u32)(
-                sceKernelGetProcessTimeWide()-measure);
-            g_tnt233_prof_name=1;
-        }
-    }
+    tnt_vita_onep_render_selected_row(
+        buffer, board_x, board_y, cell, menu);
 }
 
 static void tnt_vita_draw_mayan_moon_layer(
@@ -8937,11 +8919,7 @@ static void tnt_vita_credits_render(
     int board_x, int board_y, int cell, const TNTVitaCredits *credits
 ) {
     int rendered = -1;
-    u64 mark=sceKernelGetProcessTimeWide();
     tnt_vita_credits_build_native_frame(credits);
-    g_tnt233_credits_native_us=(u32)(
-        sceKernelGetProcessTimeWide()-mark);
-    mark=sceKernelGetProcessTimeWide();
 
     /* The center 400x300 original Credits texture replaces every
      * center pixel each GXM scene. The bezel is repainted in swap_buffers.
@@ -8952,9 +8930,6 @@ static void tnt_vita_credits_render(
         memset(buffer,0,DISPLAY_STRIDE*DISPLAY_HEIGHT*sizeof(u32));
         g_tnt_credits_cleared_buffer[backBuffer]=TRUE;
     }
-    g_tnt233_credits_clear_us=(u32)(
-        sceKernelGetProcessTimeWide()-mark);
-    mark=sceKernelGetProcessTimeWide();
     if (g_tnt_milestone_gxm_ready) {
         rendered = TNT_Vita_CreditsGxmRender(
             surface, sync, board_x, board_y, cell,
@@ -8963,9 +8938,6 @@ static void tnt_vita_credits_render(
 
     /* Safety fallback if the GXM helper is unavailable: point-scale the native
      * frame. This is not the intended path but keeps Credits functional. */
-    g_tnt233_credits_gxm_us=(u32)(
-        sceKernelGetProcessTimeWide()-mark);
-    g_tnt233_prof_credits=1;
     if (rendered < 0) {
         u32 *dst = (u32 *)buffer;
         int y;
@@ -12217,27 +12189,6 @@ static void swap_buffers(void) {
             buffers[backBuffer].data, TNT_PRESENT_BOARD_X, TNT_PRESENT_CELL);
     }
     tnt_vita_update_and_draw_fps(buffers[backBuffer].data);
-    if(g_tnt_fps_counter_enabled &&
-       (g_tnt233_prof_credits||g_tnt233_prof_name)) {
-        char line[32];
-        if(g_tnt233_prof_credits) {
-            snprintf(line,sizeof(line),"N %lu",
-                (unsigned long)g_tnt233_credits_native_us);
-            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,34,line);
-            snprintf(line,sizeof(line),"C %lu",
-                (unsigned long)g_tnt233_credits_clear_us);
-            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,49,line);
-            snprintf(line,sizeof(line),"G %lu",
-                (unsigned long)g_tnt233_credits_gxm_us);
-            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,64,line);
-        } else {
-            snprintf(line,sizeof(line),"NAME %lu",
-                (unsigned long)g_tnt233_name_us);
-            tnt_vita_draw_debug_text(buffers[backBuffer].data,14,34,line);
-        }
-    }
-    g_tnt233_prof_credits=0;
-    g_tnt233_prof_name=0;
     g_tnt_wonder_profile_active=FALSE;
 
     sceGxmPadHeartbeat(
