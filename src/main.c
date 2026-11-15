@@ -567,6 +567,19 @@ static u32 *g_tnt_onep_newname_cache;
 static u8 g_tnt_onep_newname_alloc_attempted;
 static u8 g_tnt_onep_newname_ready[TNT_MULTI_SLOT_PULSE_STATES];
 static u8 g_tnt_onep_newname_build_cursor;
+/* The NEW NAME keyboard uses the same selected 154x30 IA8 pink box
+ * as the ordinary profile chooser but with LIVE typed glyphs. Cache the
+ * original source box against the unselected background independently
+ * and draw the typed name after copying the cached box. This avoids
+ * the 15ms per-frame software-blending hotspot seen with five letters.
+ * A separate nine-state tile is required because the profile chooser
+ * cache also includes the fixed "NEW NAME" text. */
+static u32 *g_tnt_onep_editor_box_cache;
+static u8 g_tnt_onep_editor_box_alloc_attempted;
+static u8 g_tnt_onep_editor_box_ready[TNT_MULTI_SLOT_PULSE_STATES];
+static u8 g_tnt_onep_editor_box_build_cursor;
+static int g_tnt_onep_editor_box_dx,g_tnt_onep_editor_box_dy;
+static int g_tnt_onep_editor_box_w,g_tnt_onep_editor_box_h;
 static int g_tnt_onep_newname_dx,g_tnt_onep_newname_dy;
 static int g_tnt_onep_newname_w,g_tnt_onep_newname_h;
 #define TNT_MULTI_SLOT_CACHE_BYTES ((size_t)4 * TNT_MULTI_SLOT_PULSE_STATES * TNT_MULTI_SLOT_CACHE_PIXELS * sizeof(uint32_t))
@@ -897,6 +910,14 @@ static u32 g_tnt_credits_frame[200 * 150];
 static u32 g_tnt_credits_native_base[400 * 300];
 static u32 g_tnt_credits_native_frame[400 * 300];
 static u8 g_tnt_credits_effect_ready;
+/* Test234D: Credits GXM draws an OPAQUE, complete 400x300 texture into the
+ * entire center viewport each frame, and swap_buffers redraws the
+ * unchanged cybergrid surround. Every physical Vita framebuffer thus
+ * needs a full black clear ONLY once on entering Credits. The old code
+ * rewrote 2.2MiB to black on every frame; owner profiler measured ~3.2ms.
+ * Reinitialize per-buffer validity on each Credits entrance to prevent
+ * stale menu contents leaking into the letterboxed gutter pixels. */
+static u8 g_tnt_credits_cleared_buffer[DISPLAY_BUFFER_COUNT];
 
 /* N64 osGetTime() counts at 46.875 MHz: OS_CYCLES_TO_NSEC(c) is c*64/3.
  * Vita process time is in microseconds, so convert it back to the same raw
@@ -6677,6 +6698,9 @@ static void tnt_vita_onep_build_cache(
     g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_NONE;
     g_tnt_onep_newname_build_cursor=0;
     memset(g_tnt_onep_newname_ready,0,sizeof(g_tnt_onep_newname_ready));
+    g_tnt_onep_editor_box_build_cursor=0;
+    memset(g_tnt_onep_editor_box_ready,0,
+           sizeof(g_tnt_onep_editor_box_ready));
     memcpy(
         g_tnt_onep_static_scene,
         g_tnt_menu_background_scene,
@@ -7359,6 +7383,10 @@ static void tnt_vita_onep_build_editor_cache(
     (void)menu;
 }
 
+/* The exact editor box pulse cache builder is defined by the ordinary
+ * Single Player settled renderer helpers below. */
+static u8 tnt_vita_onep_draw_cached_editor_box(void *buffer,u8 pulse);
+
 static void tnt_vita_onep_render_name_editor_dynamic(
     void *buffer,
     int board_x,
@@ -7377,11 +7405,17 @@ static void tnt_vita_onep_render_name_editor_dynamic(
         board_x, board_y, cell, 0x3C, 0x51, TNTV_ROM_OriginalText(40U),
         0xFF, 0xFF, 0xFF, pulse);
 
-    tnt_vita_draw_original_ia8_sprite_tinted(
-        buffer, board_x, board_y, cell,
-        0xB0, 0x50, 154, 30,
-        g_tnt_onep_selection_box_ia8,
-        0xFF, pulse, pulse, pulse);
+    /* The 154x30 IA8 selection box is expensive (~milliseconds) when
+     * recomposited every frame. Its original nine pulse levels were
+     * already built against the unselected panel in menu entrance.
+     * Typed glyphs are drawn LIVE on top and are not frozen. */
+    if(!tnt_vita_onep_draw_cached_editor_box(buffer,pulse)) {
+        tnt_vita_draw_original_ia8_sprite_tinted(
+            buffer, board_x, board_y, cell,
+            0xB0, 0x50, 154, 30,
+            g_tnt_onep_selection_box_ia8,
+            0xFF, pulse, pulse, pulse);
+    }
 
     /* Source glyph order/alpha is unchanged, but several consecutive
      * committed white characters can share ONE font call rather than
@@ -7646,6 +7680,75 @@ static void tnt_vita_onep_build_newname_pulse_step(
     g_tnt_onep_newname_ready[state]=TRUE;
     g_tnt_onep_newname_build_cursor++;
 }
+static void tnt_vita_onep_build_editor_box_pulse_step(
+    int board_x,int board_y,int cell
+) {
+    int state=(int)g_tnt_onep_editor_box_build_cursor;
+    int dx0,dy0,dx1,dy1,w,h,y;
+    u32 *tile;
+    u8 pulse;
+    if(state>=TNT_MULTI_SLOT_PULSE_STATES)return;
+    if(!g_tnt_onep_editor_box_cache) {
+        if(g_tnt_onep_editor_box_alloc_attempted)return;
+        g_tnt_onep_editor_box_alloc_attempted=TRUE;
+        g_tnt_onep_editor_box_cache=malloc(
+            (size_t)TNT_MULTI_SLOT_PULSE_STATES*
+            TNT_ONEP_NEWNAME_PIXELS*sizeof(u32));
+        if(!g_tnt_onep_editor_box_cache)return;
+    }
+    dx0=board_x+tnt_floor_div_s64((s64)(0xB0-83)*cell,11);
+    dy0=board_y+tnt_floor_div_s64((s64)(0x50-36)*cell,11);
+    dx1=board_x+tnt_floor_div_s64((s64)(0xB0+154-83)*cell+10,11);
+    dy1=board_y+tnt_floor_div_s64((s64)(0x50+30-36)*cell+10,11);
+    if(dx0<0||dy0<0||dx1>DISPLAY_WIDTH||dy1>DISPLAY_HEIGHT)return;
+    w=dx1-dx0;h=dy1-dy0;
+    if(w<1||h<1||w>TNT_ONEP_NEWNAME_W||h>TNT_ONEP_NEWNAME_H)return;
+    g_tnt_onep_editor_box_dx=dx0;
+    g_tnt_onep_editor_box_dy=dy0;
+    g_tnt_onep_editor_box_w=w;
+    g_tnt_onep_editor_box_h=h;
+    /* This temporary framebuffer is the same dormant scene-decode scratch
+     * used by the proven multiplayer/SINGLE newname pulse generators.
+     * Restore the *unselected* source panel before blending exactly one
+     * IA8 cursor-box pulse state over it. No typed glyphs are stored
+     * here; those remain live in the renderer below. */
+    tnt_vita_restore_native_rect_from_scene(
+        g_tnt_gameplay_base_scene,g_tnt_onep_static_scene,
+        board_x,board_y,cell,0xB0,0x50,0xB0+154,0x50+30);
+    pulse=g_tnt_multi_pulse_levels[state];
+    tnt_vita_draw_original_ia8_sprite_tinted(
+        g_tnt_gameplay_base_scene,board_x,board_y,cell,
+        0xB0,0x50,154,30,g_tnt_onep_selection_box_ia8,
+        0xFF,pulse,pulse,pulse);
+    tile=g_tnt_onep_editor_box_cache+
+         (size_t)state*TNT_ONEP_NEWNAME_PIXELS;
+    for(y=0;y<h;y++) {
+        memcpy(tile+y*TNT_ONEP_NEWNAME_W,
+               g_tnt_gameplay_base_scene+(dy0+y)*DISPLAY_STRIDE+dx0,
+               (size_t)w*sizeof(u32));
+    }
+    g_tnt_onep_editor_box_ready[state]=TRUE;
+    g_tnt_onep_editor_box_build_cursor++;
+}
+static u8 tnt_vita_onep_draw_cached_editor_box(
+    void *buffer,u8 pulse
+) {
+    int state=tnt_vita_multi_pulse_cache_index(pulse);
+    const u32 *tile;
+    u32 *dst=buffer;
+    int y;
+    if(!g_tnt_onep_editor_box_cache||
+       !g_tnt_onep_editor_box_ready[state])return FALSE;
+    tile=g_tnt_onep_editor_box_cache+
+         (size_t)state*TNT_ONEP_NEWNAME_PIXELS;
+    for(y=0;y<g_tnt_onep_editor_box_h;y++) {
+        memcpy(dst+(g_tnt_onep_editor_box_dy+y)*DISPLAY_STRIDE+
+               g_tnt_onep_editor_box_dx,
+               tile+y*TNT_ONEP_NEWNAME_W,
+               (size_t)g_tnt_onep_editor_box_w*sizeof(u32));
+    }
+    return TRUE;
+}
 static u8 tnt_vita_onep_draw_cached_newname(void *buffer,u8 pulse) {
     int state=tnt_vita_multi_pulse_cache_index(pulse);
     int y;
@@ -7785,6 +7888,13 @@ static void tnt_vita_onep_render(
      * focused. No image frame is held and no game-mode timebase is changed. */
     if(g_tnt_onep_newname_build_cursor<TNT_MULTI_SLOT_PULSE_STATES)
         tnt_vita_onep_build_newname_pulse_step(board_x,board_y,cell);
+    /* The editor's selection-box states are separate because the above
+     * cache includes "NEW NAME" as solid source text. Build one state
+     * per entrance frame, then just memcpy the background box on
+     * normal name editing frames. Both generators are disabled once
+     * all nine source states are built. */
+    if(g_tnt_onep_editor_box_build_cursor<TNT_MULTI_SLOT_PULSE_STATES)
+        tnt_vita_onep_build_editor_box_pulse_step(board_x,board_y,cell);
 
     /* The cheat can be turned ON or OFF from the NEW NAME editor while
      * SINGLE is already open. Rebuild only the static scene on a flag
@@ -8790,6 +8900,8 @@ static void tnt_vita_credits_enter(TNTVitaCredits *credits) {
     u16 i;
     memset(credits, 0, sizeof(*credits));
     credits->active = TRUE;
+    memset(g_tnt_credits_cleared_buffer,0,
+           sizeof(g_tnt_credits_cleared_buffer));
     for (i = 0; i < g_tnt_credits_line_count; i++)
         total += g_tnt_credits_font_is_b[i] ? 16U : 14U;
     credits->total_height = total;
@@ -8831,9 +8943,15 @@ static void tnt_vita_credits_render(
         sceKernelGetProcessTimeWide()-mark);
     mark=sceKernelGetProcessTimeWide();
 
-    /* Only the pillarbox area needs a CPU clear. A single memset is still far
-     * cheaper than the old per-output-pixel text/filtering path. */
-    memset(buffer, 0, DISPLAY_STRIDE * DISPLAY_HEIGHT * sizeof(u32));
+    /* The center 400x300 original Credits texture replaces every
+     * center pixel each GXM scene. The bezel is repainted in swap_buffers.
+     * Once each physical buffer has been initialized black on entry,
+     * re-clearing >2MiB every frame has no visible effect. The once-
+     * per-buffer clear also protects the GXM fallback's gutters. */
+    if(!g_tnt_credits_cleared_buffer[backBuffer]) {
+        memset(buffer,0,DISPLAY_STRIDE*DISPLAY_HEIGHT*sizeof(u32));
+        g_tnt_credits_cleared_buffer[backBuffer]=TRUE;
+    }
     g_tnt233_credits_clear_us=(u32)(
         sceKernelGetProcessTimeWide()-mark);
     mark=sceKernelGetProcessTimeWide();
