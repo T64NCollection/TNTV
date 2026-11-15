@@ -30,11 +30,6 @@
  * records only its wall-time while ordinary 1P background draws. */
 extern u8 g_tnt_test103a_measure_gxm;
 extern u32 g_tnt_test103a_gpu_wait_us;
-/* TEST226D private cinematic profiler; no public-release diagnostics. */
-extern u32 g_tnt_intro_geometry_us;
-extern u32 g_tnt_intro_submit_us;
-extern u32 g_tnt_intro_gpu_wait_us;
-extern u32 g_tnt_intro_draw_runs;
 static void tnt103a_profiled_gxm_finish(SceGxmContext *context) {
     if (!g_tnt_test103a_measure_gxm) {
         sceGxmFinish(context);
@@ -4555,7 +4550,6 @@ void TNT_Vita_WonderMilestoneGxmTerm(void) {
 int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
     s32 board_x,s32 board_y,s32 cell,u8 white_fade) {
     f32 proj[16],ident[16];void *ub;u16 r;u8 ur;
-    u64 intro_stage_us=sceKernelGetProcessTimeWide();
     u8 last_alpha=255; u16 last_texture=0xffffU;
     f32 x0=(f32)board_x+((0.0f-83.0f)*(f32)cell/11.0f);
     f32 x1=(f32)board_x+((400.0f-83.0f)*(f32)cell/11.0f);
@@ -4564,9 +4558,6 @@ int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
     s32 clip_x0=(s32)floorf(x0),clip_x1=(s32)ceilf(x1)-1;
     s32 clip_y0=(s32)floorf(y0),clip_y1=(s32)ceilf(y1)-1;
     if(!s_gxm.initialized||!s_gxm.color_fp||!s_gxm.color_alpha_fp||build_intro_geometry(proj)<0)return -1;
-    g_tnt_intro_geometry_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
-    g_tnt_intro_draw_runs=s_gxm.run_count;
-    intro_stage_us=sceKernelGetProcessTimeWide();
     if(clip_x0<0)clip_x0=0;if(clip_y0<0)clip_y0=0;if(clip_x1>=TNT_GXM_W)clip_x1=TNT_GXM_W-1;if(clip_y1>=TNT_GXM_H)clip_y1=TNT_GXM_H-1;
     memset(ident,0,sizeof(ident));ident[0]=ident[5]=ident[10]=ident[15]=1.0f;
     if(sceGxmBeginScene(s_gxm.context,0,s_gxm.render_target,NULL,NULL,sync,surface,&s_gxm.depth_surface)<0)return -1;
@@ -4668,10 +4659,7 @@ int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
         sceGxmDraw(s_gxm.context,SCE_GXM_PRIMITIVE_TRIANGLES,SCE_GXM_INDEX_FORMAT_U16,s_gxm.indices,3);
     }
     sceGxmEndScene(s_gxm.context,NULL,NULL);
-    g_tnt_intro_submit_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
-    intro_stage_us=sceKernelGetProcessTimeWide();
     tnt103a_profiled_gxm_finish(s_gxm.context);
-    g_tnt_intro_gpu_wait_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
     return 0;
 }
 
