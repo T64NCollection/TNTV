@@ -222,6 +222,12 @@ static u8 s_intro_untex_alpha[TNT_INTRO_UNTEXTURED_DRAW_COUNT];
 static u8 s_intro_untex_runs;
 static u16 s_intro_shade_first,s_intro_shade_count;
 static u16 s_intro_fog_first,s_intro_fog_count;
+/* Test225D: the source intro draws each vertex again for SHADE and FOG.
+ * Record its already-built base-pass position; reuse those coordinates in
+ * later passes instead of repeating identical 4x4 matrix transforms. */
+static u16 s_intro_base_first[TNT_INTRO_DRAW_COUNT];
+/* Both light directions are constant for every vertex in a frame. */
+static f32 s_intro_light_dir[2][3];
 static u16 s_complete_untex_count;
 static u16 s_celtic_run_shade_first[TNT_GXM_MAX_RUNS];
 static u16 s_celtic_run_shade_count[TNT_GXM_MAX_RUNS];
@@ -3621,10 +3627,12 @@ static void intro_vertex_shade(const TNTIntroPose *pose,const TNTIntroDrawDef *d
         *r=(f32)(u8)v->nx/255.0f;*g=(f32)(u8)v->ny/255.0f;*b=(f32)(u8)v->nz/255.0f;
     }else{
         f32 nx,ny,nz,d0,d1;
-        f32 l0x=pose->node[1][0],l0y=pose->node[1][1],l0z=pose->node[1][2];
-        f32 l1x=pose->node[2][0],l1y=pose->node[2][1],l1z=pose->node[2][2];
+        const f32 l0x=s_intro_light_dir[0][0],l0y=s_intro_light_dir[0][1],l0z=s_intro_light_dir[0][2];
+        const f32 l1x=s_intro_light_dir[1][0],l1y=s_intro_light_dir[1][1],l1z=s_intro_light_dir[1][2];
         transform_vector(model,(f32)v->nx/127.0f,(f32)v->ny/127.0f,(f32)v->nz/127.0f,&nx,&ny,&nz);
-        normalize3(&nx,&ny,&nz);normalize3(&l0x,&l0y,&l0z);normalize3(&l1x,&l1y,&l1z);
+        /* Previously normalized both same lights for every one of ~4,500
+         * vertices, repeated in two shading passes. Normalize once per pose. */
+        normalize3(&nx,&ny,&nz);
         d0=nx*l0x+ny*l0y+nz*l0z;if(d0<0)d0=0;
         d1=nx*l1x+ny*l1y+nz*l1z;if(d1<0)d1=0;
         *r=pose->light[2][0]*pose->light[2][1]+d0*pose->light[0][0]*pose->light[0][1]+d1*pose->light[1][0]*pose->light[1][1];
@@ -3650,6 +3658,14 @@ static int build_intro_geometry(f32 proj[16]) {
     f32 nearz,farz;u32 i,j;
     reset_geometry();s_intro_untex_runs=0;s_intro_shade_first=s_intro_shade_count=s_intro_fog_first=s_intro_fog_count=0;
     update_intro_fade_textures(pose);intro_camera_view(pose,&view);intro_projection_matrix(pose,proj,&nearz,&farz);
+    s_intro_light_dir[0][0]=pose->node[1][0];
+    s_intro_light_dir[0][1]=pose->node[1][1];
+    s_intro_light_dir[0][2]=pose->node[1][2];
+    s_intro_light_dir[1][0]=pose->node[2][0];
+    s_intro_light_dir[1][1]=pose->node[2][1];
+    s_intro_light_dir[1][2]=pose->node[2][2];
+    normalize3(&s_intro_light_dir[0][0],&s_intro_light_dir[0][1],&s_intro_light_dir[0][2]);
+    normalize3(&s_intro_light_dir[1][0],&s_intro_light_dir[1][1],&s_intro_light_dir[1][2]);
     for(i=0;i<TNT_INTRO_NODE_COUNT;i++)intro_node_world_one((u8)i,pose,world,done);
 
     /* Textured source draws stay in original command order. */
@@ -3662,6 +3678,7 @@ static int build_intro_geometry(f32 proj[16]) {
         td=&g_tnt_intro_textures[d->texture];
         gpu_tex=(i>=73&&i<=77)?(u16)(TNT_GXM_INTRO_FADE_TEXTURE_BASE+(i-73)):(u16)(TNT_GXM_INTRO_TEXTURE_BASE+d->texture);
         run=&s_gxm.runs[s_gxm.run_count++];run->first=s_gxm.tex_count;run->count=d->count;run->texture=gpu_tex;
+        s_intro_base_first[i]=run->first;
         run->pad=(u8)(i>=73&&i<=77);
         run->pad2=0;
         for(j=0;j<d->count;j++){
@@ -3677,6 +3694,7 @@ static int build_intro_geometry(f32 proj[16]) {
         if(d->texture!=255||pose->draw_transparency[i]>=1.0f)continue;
         if(s_intro_untex_runs>=TNT_INTRO_UNTEXTURED_DRAW_COUNT||s_gxm.color_count+d->count>TNT_GXM_MAX_COLOR_VERTS)return -1;
         make_draw_model(&world[d->node],d->scale,&model);mat_mult(&mv,&view,&model);
+        s_intro_base_first[i]=s_gxm.color_count;
         s_intro_untex_first[s_intro_untex_runs]=s_gxm.color_count;s_intro_untex_count[s_intro_untex_runs]=d->count;s_intro_untex_alpha[s_intro_untex_runs]=1;s_intro_untex_runs++;
         for(j=0;j<d->count;j++){
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 r,g,b,opacity;
@@ -3695,10 +3713,12 @@ static int build_intro_geometry(f32 proj[16]) {
         const TNTIntroDrawDef *d=&g_tnt_intro_draws[i];
         if(d->texture==255||pose->draw_transparency[i]>=1.0f||(i>=73&&i<=77))continue;
         if(s_gxm.color_count+d->count>TNT_GXM_MAX_COLOR_VERTS)return -1;
-        make_draw_model(&world[d->node],d->scale,&model);mat_mult(&mv,&view,&model);
+        make_draw_model(&world[d->node],d->scale,&model);
         for(j=0;j<d->count;j++){
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 r,g,b;
-            transform_point(&mv,(f32)v->x,(f32)v->y,(f32)v->z,&cv->x,&cv->y,&cv->z);intro_vertex_shade(pose,d,&model,v,&r,&g,&b);cv->color=intro_pack_rgba(r,g,b,1.0f);
+            { const TNTGxmTexVertex *base=&s_gxm.tex_vertices[s_intro_base_first[i]+j];
+              cv->x=base->x;cv->y=base->y;cv->z=base->z; }
+            intro_vertex_shade(pose,d,&model,v,&r,&g,&b);cv->color=intro_pack_rgba(r,g,b,1.0f);
         }
     }
     s_intro_shade_count=s_gxm.color_count-s_intro_shade_first;
@@ -3711,10 +3731,17 @@ static int build_intro_geometry(f32 proj[16]) {
         if(pose->draw_transparency[i]>=1.0f||(i>=73&&i<=77))continue;
         if(i>=84)continue; /* two translucent untextured fades */
         if(s_gxm.color_count+d->count>TNT_GXM_MAX_COLOR_VERTS)return -1;
-        make_draw_model(&world[d->node],d->scale,&model);mat_mult(&mv,&view,&model);
         for(j=0;j<d->count;j++){
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmColorVertex *cv=&s_gxm.color_vertices[s_gxm.color_count++];f32 f;
-            transform_point(&mv,(f32)v->x,(f32)v->y,(f32)v->z,&cv->x,&cv->y,&cv->z);
+            /* Base textured and untextured passes have already produced
+             * exactly the same camera-space position for this source draw. */
+            if(d->texture!=255) {
+                const TNTGxmTexVertex *base=&s_gxm.tex_vertices[s_intro_base_first[i]+j];
+                cv->x=base->x;cv->y=base->y;cv->z=base->z;
+            } else {
+                const TNTGxmColorVertex *base=&s_gxm.color_vertices[s_intro_base_first[i]+j];
+                cv->x=base->x;cv->y=base->y;cv->z=base->z;
+            }
             f=intro_fog_factor(cv->z,nearz,farz,pose->fog[0],pose->fog[1])*pose->fog[5];
             cv->color=intro_pack_rgba(pose->fog[2],pose->fog[3],pose->fog[4],f);
         }

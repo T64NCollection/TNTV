@@ -12875,6 +12875,11 @@ int main(int argc, char *argv[]) {
     u16 endgame_exit_delay = 120;
     u8 developer_active = TRUE;
     u16 developer_tick = 0;
+    /* Opening cards are static except during 60-Hz palette fades.
+     * Keep each displayed color version in its own Vita backbuffer rather
+     * than re-expanding 400x300 CI8 art hundreds of times in a hold. */
+    u16 developer_drawn_alpha[DISPLAY_BUFFER_COUNT] = {256U, 256U};
+    u16 title_drawn_alpha[DISPLAY_BUFFER_COUNT] = {256U, 256U};
     u8 intro_active = FALSE;
     u8 intro_fading = FALSE;
     u16 intro_fade_tick = 0;
@@ -13205,10 +13210,17 @@ int main(int argc, char *argv[]) {
                 leave_developer = TRUE;
             }
 
-            tnt_vita_render_ci8_scene(
-                buffer, board_x, board_y, cell,
-                g_tnt_developer_rgba16, 0, 0, 0, fade_alpha);
-            tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+            /* At a constant fade the image is byte-identical from frame to
+             * frame. swap_buffers() still repaints the correct cybergrid/FPS
+             * overlay and presents at each VBlank, but the expensive CI8
+             * expansion only runs when this buffer's palette fade changes. */
+            if (developer_drawn_alpha[backBuffer] != fade_alpha) {
+                tnt_vita_render_ci8_scene(
+                    buffer, board_x, board_y, cell,
+                    g_tnt_developer_rgba16, 0, 0, 0, fade_alpha);
+                tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+                developer_drawn_alpha[backBuffer] = fade_alpha;
+            }
             swap_buffers();
 
             if (leave_developer) {
@@ -13306,6 +13318,10 @@ int main(int argc, char *argv[]) {
                     buffer, board_x, board_y, cell,
                     g_tnt_title_rgba16, 255, 255, 255, 255);
                 tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+                /* The exact white title handoff was already drawn into this
+                 * buffer; the alternate buffer still contains the intro. */
+                title_drawn_alpha[backBuffer] = 255U;
+                title_drawn_alpha[frontBuffer] = 256U;
 
                 intro_active = FALSE;
                 /* First boot is complete. From the title onward, restore the
@@ -13325,6 +13341,7 @@ int main(int argc, char *argv[]) {
 
         if (title_active) {
             void *buffer = buffers[backBuffer].data;
+            const u32 delta = tnt_vita_60hz_delta(TRUE);
             u8 fade_alpha = 0;
             u8 leave_title = FALSE;
 
@@ -13334,15 +13351,24 @@ int main(int argc, char *argv[]) {
              * Vita testing. Fifteen frontend ticks is about a quarter-second
              * at the intended 60 Hz cadence. */
             if (title_fade_tick < TNT_INTRO_HANDOFF_FADE_TICKS) {
-                fade_alpha = (u8)(((TNT_INTRO_HANDOFF_FADE_TICKS - title_fade_tick) * 255U) / TNT_INTRO_HANDOFF_FADE_TICKS);
-                title_fade_tick++;
+                u32 next = (u32)title_fade_tick + delta;
+                fade_alpha = (u8)(((TNT_INTRO_HANDOFF_FADE_TICKS -
+                    title_fade_tick) * 255U) / TNT_INTRO_HANDOFF_FADE_TICKS);
+                if (next > TNT_INTRO_HANDOFF_FADE_TICKS)
+                    next = TNT_INTRO_HANDOFF_FADE_TICKS;
+                title_fade_tick = (u8)next;
             } else {
+                /* Preserve the original 15-tick input debounce and 300-tick
+                 * idle timeout even when the renderer exceeds 30 FPS or a
+                 * single difficult frame spans multiple VBlanks. */
                 if (((g_PV_ptr->unk24 & (CONT_A | CONT_START)) != 0 &&
                      title_wait_tick >= 15) ||
                     title_wait_tick >= 300) {
                     leave_title = TRUE;
                 } else {
-                    title_wait_tick++;
+                    u32 next = (u32)title_wait_tick + delta;
+                    if (next > 300U) next = 300U;
+                    title_wait_tick = (u16)next;
                 }
             }
 
@@ -13350,11 +13376,18 @@ int main(int argc, char *argv[]) {
              * title renderer only redraws the centered 400x300 source field.
              * Clear the complete backbuffer first so no final sand pixels
              * survive in the Vita-only side areas during this handoff. */
-            clear_screen(buffer, COLOR(0, 0, 0));
-            tnt_vita_render_ci8_scene(
-                buffer, board_x, board_y, cell,
-                g_tnt_title_rgba16, 255, 255, 255, fade_alpha);
-            tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+            if (title_drawn_alpha[backBuffer] != fade_alpha) {
+                /* The intro's GXM clear leaves unused areas black; the first
+                 * title render of either buffer also clears its stale intro
+                 * frame. Static title art needs no more 2 MiB sweeps. */
+                if (title_drawn_alpha[backBuffer] == 256U)
+                    clear_screen(buffer, COLOR(0, 0, 0));
+                tnt_vita_render_ci8_scene(
+                    buffer, board_x, board_y, cell,
+                    g_tnt_title_rgba16, 255, 255, 255, fade_alpha);
+                tnt_vita_draw_frontend_pillarbox(buffer, board_x, cell);
+                title_drawn_alpha[backBuffer] = fade_alpha;
+            }
             swap_buffers();
 
             if (leave_title) {
