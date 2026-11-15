@@ -516,6 +516,17 @@ enum {
 static u8 g_tnt_frontend_cache_owner;
 static u8 g_tnt_frontend_cache_kind;
 static u32 g_tnt_frontend_cache_key;
+/* v1.05 menu60 Test229D: The original frontend builds an entire 960x544
+ * static scene into the shared cache, then copied 2.1MiB into both Vita
+ * display buffers on EVERY settled frame even when only the selection
+ * pulse changed. Each physical buffer already holds the previous settled
+ * scene from two VBlanks ago. Restore only the union of dynamic rows from
+ * the immutable precomposed page, preserving all original font/sprite
+ * drawing, pulse RGB, cache invalidation and menu entrance/fade paths.
+ * A generation change forces a full copy on BOTH buffers before reuse. */
+static u32 g_tnt_frontend_cache_generation=1U;
+static u32 g_tnt_frontend_buffer_generation[DISPLAY_BUFFER_COUNT];
+static u8 g_tnt_frontend_cached_frame_used;
 static u8 g_tnt_multi_settled_valid;
 static u8 g_tnt_multi_cache_game_type;
 static u8 g_tnt_multi_cache_garbage_type;
@@ -2320,6 +2331,32 @@ static void tnt_vita_restore_native_rect_from_scene(
                source + y * DISPLAY_STRIDE + dx0,
                (size_t)(dx1 - dx0) * sizeof(uint32_t));
     }
+}
+
+/* Settled menu page compositing: preserve each scanout buffer's static
+ * pixels until either that buffer was used for a non-settled frame or the
+ * precomposed cache was rebuilt. Dynamic widgets across all selection rows
+ * must lie inside the conservative native bounds supplied by the caller.
+ * Crucially, the frontend's black side areas are repainted every swap by
+ * the approved cybergrid path, so there is no need to touch those pixels. */
+static void tnt_vita_frontend_restore_settled(
+    void *buffer,
+    const uint32_t *source,
+    int board_x, int board_y, int cell,
+    int dynamic_x0, int dynamic_y0, int dynamic_x1, int dynamic_y1
+) {
+    if (buffer != buffers[backBuffer].data ||
+        g_tnt_frontend_buffer_generation[backBuffer] !=
+            g_tnt_frontend_cache_generation) {
+        memcpy(buffer,source,DISPLAY_STRIDE*DISPLAY_HEIGHT*sizeof(u32));
+    } else if (dynamic_x0 < dynamic_x1 && dynamic_y0 < dynamic_y1) {
+        tnt_vita_restore_native_rect_from_scene(
+            buffer,source,board_x,board_y,cell,
+            dynamic_x0,dynamic_y0,dynamic_x1,dynamic_y1);
+    }
+    g_tnt_frontend_buffer_generation[backBuffer] =
+        g_tnt_frontend_cache_generation;
+    g_tnt_frontend_cached_frame_used = TRUE;
 }
 
 static int tnt_vita_gameplay_side_mask_width(u8 gameplay_screen) {
@@ -4454,10 +4491,12 @@ static void tnt_vita_main_menu_render(
                     0xFF, 0xFF, 0xFF, a);
             }
             g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_MAIN;
+        g_tnt_frontend_cache_generation++;
         }
 
-        memcpy(buffer, g_tnt_onep_settled_scene,
-               sizeof(g_tnt_onep_settled_scene));
+        tnt_vita_frontend_restore_settled(
+            buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+            40,88,360,199);
         if (menu->selected < 4) {
             int x = 200 -
                 (TNT_Vita_FontA_TextWidth(labels[menu->selected]) / 2);
@@ -5517,9 +5556,11 @@ static void tnt_vita_options_render(
                     0xFF, 0xFF, 0xFF, base_alpha[i]);
             }
             g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_OPTIONS;
+        g_tnt_frontend_cache_generation++;
         }
-        memcpy(buffer, g_tnt_onep_settled_scene,
-               sizeof(g_tnt_onep_settled_scene));
+        tnt_vita_frontend_restore_settled(
+            buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+            55,92,345,202);
         if (menu->selected < 4) {
             int x = 200 -
                 (TNT_Vita_FontA_TextWidth(labels[menu->selected]) / 2);
@@ -5974,11 +6015,14 @@ static void tnt_vita_data_render(
         tnt_vita_data_render_uncached(
             g_tnt_onep_settled_scene, board_x, board_y, cell, &cached);
         g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_DATA;
+        g_tnt_frontend_cache_generation++;
         g_tnt_frontend_cache_kind = kind;
     }
 
-    memcpy(buffer, g_tnt_onep_settled_scene,
-           sizeof(g_tnt_onep_settled_scene));
+    tnt_vita_frontend_restore_settled(
+        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+        kind==1U?65:0,kind==1U?80:0,
+        kind==1U?365:0,kind==1U?255:0);
 
     /* Static dialog states need no live drawing at all. */
     if (kind != 1U)
@@ -6357,11 +6401,13 @@ static void tnt_vita_audio_render(
         tnt_vita_audio_render_uncached(
             g_tnt_onep_settled_scene, board_x, board_y, cell, &cached);
         g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_AUDIO;
+        g_tnt_frontend_cache_generation++;
         g_tnt_frontend_cache_key = key;
     }
 
-    memcpy(buffer, g_tnt_onep_settled_scene,
-           sizeof(g_tnt_onep_settled_scene));
+    tnt_vita_frontend_restore_settled(
+        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+        45,79,355,245);
     pulse = (u8)(menu->pulse * 255.0f);
 
     if (menu->selected == 0) {
@@ -7190,6 +7236,7 @@ static void tnt_vita_onep_build_editor_cache(
     g_tnt_onep_settled_valid = TRUE;
     g_tnt_onep_cache_kind = 2;
     g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_ONEP;
+        g_tnt_frontend_cache_generation++;
     (void)menu;
 }
 
@@ -7535,8 +7582,9 @@ static void tnt_vita_onep_render(
             g_tnt_frontend_cache_owner != TNT_FRONTEND_CACHE_ONEP ||
             g_tnt_onep_cache_kind != 2)
             tnt_vita_onep_build_editor_cache(board_x, board_y, cell, menu);
-        memcpy(buffer, g_tnt_onep_settled_scene,
-               sizeof(g_tnt_onep_settled_scene));
+        tnt_vita_frontend_restore_settled(
+            buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+            48,72,367,258);
         tnt_vita_onep_render_name_editor_dynamic(
             buffer, board_x, board_y, cell, menu, pulse);
         return;
@@ -7560,10 +7608,12 @@ static void tnt_vita_onep_render(
         g_tnt_onep_settled_valid = TRUE;
         g_tnt_onep_cache_kind = 1;
         g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_ONEP;
+        g_tnt_frontend_cache_generation++;
     }
 
-    memcpy(buffer, g_tnt_onep_settled_scene,
-           sizeof(g_tnt_onep_settled_scene));
+    tnt_vita_frontend_restore_settled(
+        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+        48,72,367,258);
     tnt_vita_onep_render_selected_row(
         buffer, board_x, board_y, cell, menu);
 }
@@ -10320,11 +10370,13 @@ static void tnt_vita_scores_render(
             g_tnt_onep_settled_scene, board_x, board_y, cell,
             &cached, TRUE);
         g_tnt_frontend_cache_owner = TNT_FRONTEND_CACHE_SCORES;
+        g_tnt_frontend_cache_generation++;
         g_tnt_frontend_cache_key = key;
     }
 
-    memcpy(buffer, g_tnt_onep_settled_scene,
-           sizeof(g_tnt_onep_settled_scene));
+    tnt_vita_frontend_restore_settled(
+        buffer,g_tnt_onep_settled_scene,board_x,board_y,cell,
+        100,53,305,145);
     pulse = (u8)(menu->pulse * 255.0f);
 
     if (menu->focus == 0) {
@@ -11606,6 +11658,13 @@ static void tnt110_record_border_cost(u32 micros){
 }
 
 static void swap_buffers(void) {
+    /* Any framebuffer used for game, intro, Wonder/movie, credit screens,
+     * menu entrances or fade transitions no longer contains a pristine
+     * settled frontend backing scene. Invalidate its cached generation so
+     * the FIRST later settled frame restores all pixels, not just widgets. */
+    if (!g_tnt_frontend_cached_frame_used)
+        g_tnt_frontend_buffer_generation[backBuffer]=0U;
+    g_tnt_frontend_cached_frame_used=FALSE;
     /* Final presentation pass.  This is intentionally below every frontend,
      * cinematic and gameplay renderer so no attract-mode or special-state path
      * can accidentally omit the surround.  Gameplay selects the established
