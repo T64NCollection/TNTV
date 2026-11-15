@@ -2873,6 +2873,21 @@ static u8 g_tnt_fps_counter_enabled;
 static u8 g_tnt_fps_combo_down;
 static u8 g_tnt_presentation_crop;
 static u8 g_tnt_intro_shim_active;
+/* TEST226D PRIVATE ONLY: sand cinematic rendering breakdown in
+ * microseconds, displayed only inside the side panel with FPS enabled. */
+u32 g_tnt_intro_geometry_us;
+u32 g_tnt_intro_submit_us;
+u32 g_tnt_intro_gpu_wait_us;
+u32 g_tnt_intro_draw_runs;
+static u8 g_tnt_intro_profile_active;
+static u32 g_tnt_intro_profile_count;
+static u64 g_tnt_intro_geometry_sum;
+static u64 g_tnt_intro_submit_sum;
+static u64 g_tnt_intro_wait_sum;
+static u32 g_tnt_intro_geometry_avg;
+static u32 g_tnt_intro_submit_avg;
+static u32 g_tnt_intro_wait_avg;
+static u32 g_tnt_intro_draw_avg;
 /* Boot-only presentation flag: suppress the normal inner vertical bezel rails
  * from the very first black/developer frame until the first sand intro hands
  * off to the title. It is never re-enabled, so normal post-intro frontend
@@ -11663,6 +11678,20 @@ static void swap_buffers(void) {
             buffers[backBuffer].data, TNT_PRESENT_BOARD_X, TNT_PRESENT_CELL);
     }
     tnt_vita_update_and_draw_fps(buffers[backBuffer].data);
+    if (g_tnt_intro_profile_active && g_tnt_fps_counter_enabled) {
+        char line[32];
+        /* Tiny instrument cluster in the Vita-only left cybergrid.
+         * G = geometry CPU; S = GXM command submission CPU;
+         * W = GPU finish wait; R = textured draw runs. */
+        snprintf(line, sizeof(line), "G %u", (unsigned)g_tnt_intro_geometry_avg);
+        tnt_vita_draw_debug_text(buffers[backBuffer].data, 14, 33, line);
+        snprintf(line, sizeof(line), "S %u", (unsigned)g_tnt_intro_submit_avg);
+        tnt_vita_draw_debug_text(buffers[backBuffer].data, 14, 48, line);
+        snprintf(line, sizeof(line), "W %u", (unsigned)g_tnt_intro_wait_avg);
+        tnt_vita_draw_debug_text(buffers[backBuffer].data, 14, 63, line);
+        snprintf(line, sizeof(line), "R %u", (unsigned)g_tnt_intro_draw_avg);
+        tnt_vita_draw_debug_text(buffers[backBuffer].data, 14, 78, line);
+    }
     g_tnt_wonder_profile_active=FALSE;
 
     sceGxmPadHeartbeat(
@@ -13045,6 +13074,7 @@ int main(int argc, char *argv[]) {
          * this below with the established conservative CRT crop. */
         g_tnt_presentation_crop = 0;
         g_tnt_intro_shim_active = FALSE;
+        g_tnt_intro_profile_active = FALSE;
         /* Temporary 2P profiler retained dormant for future diagnostics. */
         g_tnt_ai_profile_active = FALSE;
 
@@ -13239,6 +13269,7 @@ int main(int argc, char *argv[]) {
         if (intro_active) {
             u32 delta = tnt_vita_60hz_delta(TRUE);
             u8 white_fade = 0;
+            g_tnt_intro_profile_active = TRUE;
             u8 leave_intro = FALSE;
 
             /* Source 0449D0.c / resources 985+986: advance the canonical
@@ -13293,6 +13324,22 @@ int main(int argc, char *argv[]) {
                      * cannot initialize on a particular device. */
                     leave_intro = TRUE;
                 } else if (white_fade == 0) {
+                    g_tnt_intro_geometry_sum += g_tnt_intro_geometry_us;
+                    g_tnt_intro_submit_sum += g_tnt_intro_submit_us;
+                    g_tnt_intro_wait_sum += g_tnt_intro_gpu_wait_us;
+                    if (++g_tnt_intro_profile_count >= 15U) {
+                        g_tnt_intro_geometry_avg = (u32)(
+                            g_tnt_intro_geometry_sum / g_tnt_intro_profile_count);
+                        g_tnt_intro_submit_avg = (u32)(
+                            g_tnt_intro_submit_sum / g_tnt_intro_profile_count);
+                        g_tnt_intro_wait_avg = (u32)(
+                            g_tnt_intro_wait_sum / g_tnt_intro_profile_count);
+                        g_tnt_intro_draw_avg = g_tnt_intro_draw_runs;
+                        g_tnt_intro_geometry_sum = 0;
+                        g_tnt_intro_submit_sum = 0;
+                        g_tnt_intro_wait_sum = 0;
+                        g_tnt_intro_profile_count = 0;
+                    }
                     /* Fixed intro-only shim. Source pixels remain untouched and
                      * the cybergrid rails stay perfectly stationary in motion. */
                     g_tnt_intro_shim_active = TRUE;

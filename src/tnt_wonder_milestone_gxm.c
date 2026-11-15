@@ -30,6 +30,11 @@
  * records only its wall-time while ordinary 1P background draws. */
 extern u8 g_tnt_test103a_measure_gxm;
 extern u32 g_tnt_test103a_gpu_wait_us;
+/* TEST226D private cinematic profiler; no public-release diagnostics. */
+extern u32 g_tnt_intro_geometry_us;
+extern u32 g_tnt_intro_submit_us;
+extern u32 g_tnt_intro_gpu_wait_us;
+extern u32 g_tnt_intro_draw_runs;
 static void tnt103a_profiled_gxm_finish(SceGxmContext *context) {
     if (!g_tnt_test103a_measure_gxm) {
         sceGxmFinish(context);
@@ -3673,14 +3678,28 @@ static int build_intro_geometry(f32 proj[16]) {
         const TNTIntroDrawDef *d=&g_tnt_intro_draws[i];
         const TNTIntroTextureDef *td;TNTGxmRun *run;u16 gpu_tex;
         if(d->texture==255||pose->draw_transparency[i]>=1.0f)continue;
-        if(s_gxm.run_count>=TNT_GXM_MAX_RUNS||s_gxm.tex_count+d->count>TNT_GXM_MAX_TEX_VERTS)return -1;
+        if(s_gxm.tex_count+d->count>TNT_GXM_MAX_TEX_VERTS)return -1;
         make_draw_model(&world[d->node],d->scale,&model);mat_mult(&mv,&view,&model);
         td=&g_tnt_intro_textures[d->texture];
         gpu_tex=(i>=73&&i<=77)?(u16)(TNT_GXM_INTRO_FADE_TEXTURE_BASE+(i-73)):(u16)(TNT_GXM_INTRO_TEXTURE_BASE+d->texture);
-        run=&s_gxm.runs[s_gxm.run_count++];run->first=s_gxm.tex_count;run->count=d->count;run->texture=gpu_tex;
-        s_intro_base_first[i]=run->first;
-        run->pad=(u8)(i>=73&&i<=77);
-        run->pad2=0;
+        /* Adjacent primitive streams with the same texture and fade class
+         * are literally contiguous in the staged GPU vertex buffer.
+         * Coalescing ONLY those adjacent runs preserves authored draw order,
+         * primitive order and opacity but avoids duplicate GXM draw calls. */
+        s_intro_base_first[i]=s_gxm.tex_count;
+        run = s_gxm.run_count ? &s_gxm.runs[s_gxm.run_count-1] : NULL;
+        if (run && run->texture==gpu_tex &&
+            run->pad==(u8)(i>=73&&i<=77) &&
+            (u32)run->first+(u32)run->count==(u32)s_gxm.tex_count) {
+            run->count += d->count;
+        } else {
+            if(s_gxm.run_count>=TNT_GXM_MAX_RUNS)return -1;
+            run=&s_gxm.runs[s_gxm.run_count++];
+            run->first=s_gxm.tex_count;run->count=d->count;
+            run->texture=gpu_tex;
+            run->pad=(u8)(i>=73&&i<=77);
+            run->pad2=0;
+        }
         for(j=0;j<d->count;j++){
             const TNTIntroVertex *v=&g_tnt_intro_vertices[d->first+j];TNTGxmTexVertex *tv=&s_gxm.tex_vertices[s_gxm.tex_count++];
             transform_point(&mv,(f32)v->x,(f32)v->y,(f32)v->z,&tv->x,&tv->y,&tv->z);
@@ -4482,6 +4501,8 @@ void TNT_Vita_WonderMilestoneGxmTerm(void) {
 int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
     s32 board_x,s32 board_y,s32 cell,u8 white_fade) {
     f32 proj[16],ident[16];void *ub;u16 r;u8 ur;
+    u64 intro_stage_us=sceKernelGetProcessTimeWide();
+    u8 last_alpha=255; u16 last_texture=0xffffU;
     f32 x0=(f32)board_x+((0.0f-83.0f)*(f32)cell/11.0f);
     f32 x1=(f32)board_x+((400.0f-83.0f)*(f32)cell/11.0f);
     f32 y0=(f32)board_y+((0.0f-36.0f)*(f32)cell/11.0f);
@@ -4489,6 +4510,9 @@ int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
     s32 clip_x0=(s32)floorf(x0),clip_x1=(s32)ceilf(x1)-1;
     s32 clip_y0=(s32)floorf(y0),clip_y1=(s32)ceilf(y1)-1;
     if(!s_gxm.initialized||!s_gxm.color_fp||!s_gxm.color_alpha_fp||build_intro_geometry(proj)<0)return -1;
+    g_tnt_intro_geometry_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
+    g_tnt_intro_draw_runs=s_gxm.run_count;
+    intro_stage_us=sceKernelGetProcessTimeWide();
     if(clip_x0<0)clip_x0=0;if(clip_y0<0)clip_y0=0;if(clip_x1>=TNT_GXM_W)clip_x1=TNT_GXM_W-1;if(clip_y1>=TNT_GXM_H)clip_y1=TNT_GXM_H-1;
     memset(ident,0,sizeof(ident));ident[0]=ident[5]=ident[10]=ident[15]=1.0f;
     if(sceGxmBeginScene(s_gxm.context,0,s_gxm.render_target,NULL,NULL,sync,surface,&s_gxm.depth_surface)<0)return -1;
@@ -4517,11 +4541,17 @@ int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
     sceGxmReserveVertexDefaultUniformBuffer(s_gxm.context,&ub);sceGxmSetUniformDataF(ub,s_gxm.texture_wvp,0,16,proj);
     for(r=0;r<s_gxm.run_count;r++){
         TNTGxmRun *run=&s_gxm.runs[r];
-        sceGxmSetCullMode(s_gxm.context,SCE_GXM_CULL_CW);
-        sceGxmSetFrontDepthWriteEnable(s_gxm.context,SCE_GXM_DEPTH_WRITE_ENABLED);
-        sceGxmSetBackDepthWriteEnable(s_gxm.context,SCE_GXM_DEPTH_WRITE_ENABLED);
-        sceGxmSetFragmentProgram(s_gxm.context,run->pad?s_gxm.texture_alpha_fp:s_gxm.texture_fp);
-        sceGxmSetFragmentTexture(s_gxm.context,0,&s_gxm.textures[run->texture]);
+        /* Cull/depth are set identically before this loop and never change
+         * between textured runs; do not resubmit redundant state per draw. */
+        if(last_alpha!=run->pad) {
+            sceGxmSetFragmentProgram(s_gxm.context,
+                run->pad?s_gxm.texture_alpha_fp:s_gxm.texture_fp);
+            last_alpha=run->pad;
+        }
+        if(last_texture!=run->texture) {
+            sceGxmSetFragmentTexture(s_gxm.context,0,&s_gxm.textures[run->texture]);
+            last_texture=run->texture;
+        }
         sceGxmSetVertexStream(s_gxm.context,0,s_gxm.tex_vertices+run->first);
         sceGxmDraw(s_gxm.context,SCE_GXM_PRIMITIVE_TRIANGLES,SCE_GXM_INDEX_FORMAT_U16,s_gxm.indices,run->count);
     }
@@ -4583,7 +4613,12 @@ int TNT_Vita_IntroGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
         sceGxmSetRegionClip(s_gxm.context,SCE_GXM_REGION_CLIP_INSIDE,(unsigned)(clip_x1+1),0,TNT_GXM_W-1,TNT_GXM_H-1);
         sceGxmDraw(s_gxm.context,SCE_GXM_PRIMITIVE_TRIANGLES,SCE_GXM_INDEX_FORMAT_U16,s_gxm.indices,3);
     }
-    sceGxmEndScene(s_gxm.context,NULL,NULL);tnt103a_profiled_gxm_finish(s_gxm.context);return 0;
+    sceGxmEndScene(s_gxm.context,NULL,NULL);
+    g_tnt_intro_submit_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
+    intro_stage_us=sceKernelGetProcessTimeWide();
+    tnt103a_profiled_gxm_finish(s_gxm.context);
+    g_tnt_intro_gpu_wait_us=(u32)(sceKernelGetProcessTimeWide()-intro_stage_us);
+    return 0;
 }
 
 __attribute__((optimize("O2"))) int TNT_Vita_MayanSkyboxGxmRender(SceGxmColorSurface *surface,SceGxmSyncObject *sync,
