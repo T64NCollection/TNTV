@@ -12,6 +12,14 @@
 
 ---
 
+## 📸 Screenshots
+
+Captured on PlayStation TV:
+
+| Celtic gameplay | Single Player menu | Russian Wonder |
+|:---:|:---:|:---:|
+| ![Celtic stage gameplay](screenshots/celtic-gameplay.png) | ![Single Player setup and stage selection](screenshots/single-player-menu.png) | ![Russian Wonder model](screenshots/russian-wonder.png) |
+
 ## ✨ Features
 
 - **🎮 All eight solo stages, optimized:** The seven cultural stages and Industrial/Finale gameplay have been tuned for **~60 FPS** on tested Vita hardware, with extensive work on stage scenery, skies, effects and playfield rendering.
